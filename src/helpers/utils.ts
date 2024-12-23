@@ -1,54 +1,27 @@
 import {
-	http,
-	createWalletClient,
-	createPublicClient,
-	defineChain,
+  http,
+  createWalletClient,
+  createPublicClient,
+  defineChain,
+  Hex,
 } from "viem";
-import { mnemonicToAccount } from "viem/accounts";
+import { base, baseSepolia } from "viem/chains";
+import { privateKeyToAccount } from "viem/accounts";
+import "dotenv/config";
 
 /// Returns the bigger of two BigInts.
 export const maxBigInt = (a: bigint, b: bigint) => {
-	return a > b ? a : b;
+  return a > b ? a : b;
 };
 
-export const getAnvilWalletClient = async () => {
-	const account = mnemonicToAccount(
-		"test test test test test test test test test test test junk",
-		{
-			/* avoid nonce error with index 0 when deploying ep contracts. */
-			addressIndex: 1,
-		},
-	);
+export const getChain = () => baseSepolia;
 
-	const walletClient = createWalletClient({
-		account,
-		chain: await getChain(),
-		transport: http(process.env.ANVIL_RPC),
-	});
+export const getWalletClient = () => {
+  const account = privateKeyToAccount(`0x${process.env.PRIVATE_KEY}`);
 
-	return walletClient;
-};
-
-export const getChain = async () => {
-	const tempClient = createPublicClient({
-		transport: http(process.env.ANVIL_RPC),
-	});
-
-	const chain = defineChain({
-		id: await tempClient.getChainId(),
-		name: "chain",
-		nativeCurrency: {
-			name: "ETH",
-			symbol: "ETH",
-			decimals: 18,
-		},
-		rpcUrls: {
-			default: {
-				http: [],
-				webSocket: undefined,
-			},
-		},
-	});
-
-	return chain;
+  return createWalletClient({
+    account,
+    chain: getChain(),
+    transport: http(process.env.RPC_URL),
+  });
 };

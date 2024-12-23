@@ -2,12 +2,14 @@
   "name": "custom-paymaster",
   "private": true,
   "scripts": {
-    "start": "tsx src/index.ts"
+    "compile": "hardhat compile",
+    "start": "npm run compile && tsx src/index.ts"
   },
   "dependencies": {
     "@account-abstraction/contracts": "0.7.0",
     "@fastify/cors": "^9.0.1",
     "@openzeppelin/contracts": "^5.1.0",
+    "dotenv": "^16.4.7",
     "fastify": "^4.26.2",
     "permissionless": "^0.1.0",
     "tslib": "2.6.2",
