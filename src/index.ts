@@ -80,7 +80,7 @@ const main = async () => {
     return reply.code(200).send("custom paymaster from SBC");
   });
 
-  app.post("/rpc", {}, rpcHandler);
+  app.post("/", {}, rpcHandler);
 
   app.get("/ping", async (_request, reply) => {
     return reply.code(200).send({ message: "pong" });

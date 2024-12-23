@@ -11,3 +11,7 @@
 - [ ] Deploy contract to Testnet
 - [ ] Fund contract on EntryPoint (Base Sepolia)
 - [ ] Set up Fastify on Vercel
+
+## Author
+
+- [@Ectsang](https://www.github.com/Ectsang)
