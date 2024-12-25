@@ -46,7 +46,7 @@ export const deploySbcPaymasterV07 = async (
     address: SBC_PAYMASTER_V07_Address,
   });
 
-  if (bytecode !== "0x") {
+  if (bytecode && bytecode !== "0x") {
     console.log(
       "SBC Paymaster v0.7 already deployed at",
       SBC_PAYMASTER_V07_Address
