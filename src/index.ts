@@ -46,7 +46,21 @@ const main = async () => {
     return reply.code(200).send({ message: "pong" });
   });
 
-  await app.listen({ host: "0.0.0.0", port: 3000 });
+  // await app.listen({ host: "0.0.0.0", port: 3000 });
+  return app;
 };
 
-main();
+export const routes = main();
+
+async function start() {
+  (await routes).listen({ host: "0.0.0.0", port: 3000 });
+}
+
+start()
+  .then(() => {
+    console.log("Running on http://0.0.0.0:3000");
+  })
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
