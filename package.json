@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "compile": "hardhat compile",
-    "build": "npm run compile && copyfiles -f artifacts/contracts/**/*.json contracts/abi/",
+    "copy": "npm run compile && copyfiles -f artifacts/contracts/**/*.json contracts/abi/",
     "start": "tsx src/index.ts"
   },
   "dependencies": {
