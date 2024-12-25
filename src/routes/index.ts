@@ -81,12 +81,12 @@ const routes: FastifyPluginAsync = async (server) => {
         }
       );
 
-      instance.post("/", await setupHandler());
+      instance.post("/rpc", await setupHandler());
 
       done();
     },
     {
-      prefix: "/rpc/v1",
+      prefix: "/v1",
     }
   );
 };
