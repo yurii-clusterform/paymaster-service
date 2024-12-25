@@ -14,7 +14,7 @@ async function app(
   instance.get("/", async (req: FastifyRequest, res: FastifyReply) => {
     res.status(200).send("custom paymaster from SBC");
   });
-  instance.register(routes, { prefix: "/rpc/v1" });
+  instance.register(routes, { prefix: "/" });
   done();
 }
 
