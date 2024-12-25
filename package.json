@@ -4,7 +4,7 @@
   "scripts": {
     "compile": "hardhat compile",
     "build": "npm run compile && copyfiles -f artifacts/contracts/**/*.json contracts/abi/",
-    "start": "npm run build && tsx src/index.ts"
+    "start": "tsx src/index.ts"
   },
   "dependencies": {
     "@account-abstraction/contracts": "0.7.0",
