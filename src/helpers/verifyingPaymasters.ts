@@ -25,7 +25,7 @@ import {
 import {
   abi as PaymasterV07Abi,
   bytecode as PaymasterV07Bytecode,
-} from "../../artifacts/contracts/ApproveAllPaymasterV07.sol/ApproveAllPaymasterV07.json";
+} from "../../contracts/abi/ApproveAllPaymasterV07.json";
 
 const SBC_PAYMASTER_V07_CALL = concat([SALT, PaymasterV07Bytecode as Hex]);
 
