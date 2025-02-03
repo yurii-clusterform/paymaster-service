@@ -36,6 +36,7 @@ import {
   type JsonRpcSchema,
   RpcError,
   ValidationErrors,
+  ethEstimateUserOperationGasParamsSchema,
   jsonRpcSchema,
   pmGetPaymasterData,
   pmGetPaymasterStubDataParamsSchema,
@@ -398,7 +399,7 @@ const handleMethod = async (
       },
     ];
   }
-
+ 
   throw new RpcError(
     "Attempted to call an unknown method",
     ValidationErrors.InvalidFields
@@ -636,6 +637,33 @@ const handleSbcMethod = async (
         paymasterV07,
         walletClient,
         false
+      );
+    }
+
+    throw new RpcError(
+      "EntryPoint not supported",
+      ValidationErrors.InvalidFields
+    );
+  }
+
+  if (parsedBody.method === "eth_estimateUserOperationGas") {
+    console.log("eth_estimateUserOperationGas CALLED!");
+    const params = ethEstimateUserOperationGasParamsSchema.safeParse(parsedBody.params);
+    if (!params.success) {
+      throw new RpcError(
+        fromZodError(params.error).message,
+        ValidationErrors.InvalidFields
+      );
+    }
+    const [userOperation, entryPoint] = params.data;
+
+    if (entryPoint === ENTRYPOINT_ADDRESS_V07) {
+      return await handleSbcMethodV07(
+        userOperation as UserOperation<"v0.7">,
+        altoBundlerV07,
+        paymasterV07,
+        walletClient,
+        true
       );
     }
 

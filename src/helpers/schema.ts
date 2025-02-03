@@ -149,6 +149,11 @@ export const pmSponsorUserOperationParamsSchema = z.tuple([
 	addressSchema,
 ]);
 
+export const ethEstimateUserOperationGasParamsSchema = z.tuple([
+	z.union([userOperationSchemaPaymasterV6, userOperationSchemaPaymasterV7]),
+	addressSchema,
+]);
+
 const eip7677UserOperationSchemaV6 = z
 	.object({
 		sender: addressSchema,
