@@ -34,7 +34,7 @@ import {
 
 import {
   abi as PaymasterV07Abi,
-} from "../artifacts/contracts/SignatureVerifyingPaymasterV07.sol/SignatureVerifyingPaymasterV07.json";
+} from "../contracts/abi/SignatureVerifyingPaymasterV07.json";
 
 // const handleMethodV06 = async (
 //   userOperation: UserOperation<"v0.6">,

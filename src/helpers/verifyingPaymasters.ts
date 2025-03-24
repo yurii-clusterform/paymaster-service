@@ -30,7 +30,7 @@ import {
 import {
   abi as PaymasterV07Abi,
   bytecode as PaymasterV07Bytecode,
-} from "../../artifacts/contracts/SignatureVerifyingPaymasterV07.sol/SignatureVerifyingPaymasterV07.json";
+} from "../../contracts/abi/SignatureVerifyingPaymasterV07.json";
 
 /**
  * Returns the call data for the SBC Paymaster v0.7 constructor
