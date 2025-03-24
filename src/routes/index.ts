@@ -6,10 +6,10 @@ import {
   FastifyServerOptions,
 } from "fastify";
 import cors from "@fastify/cors";
-import { ENTRYPOINT_ADDRESS_V06, ENTRYPOINT_ADDRESS_V07 } from "permissionless";
+import { ENTRYPOINT_ADDRESS_V07 } from "permissionless/utils";
 import { createPimlicoBundlerClient } from "permissionless/clients/pimlico";
 import { http } from "viem";
-import { getWalletClient, getChain } from "../helpers/utils";
+import { getWalletClient, getChain, getTrustedSignerWalletClient } from "../helpers/utils";
 import {
   deploySbcPaymasterV07,
   fundSbcPaymasterV07,
@@ -32,23 +32,29 @@ interface CustomRouteGenericParam {
   Params: IParams;
 }
 
-const setupHandler = async () => {
+const setupHandler = async () => {  
+  // Get deployer wallet client
   const walletClient = getWalletClient();
+  const owner = walletClient.account.address;
 
   // Deploy and fund paymaster
-  const paymasterV07 = await deploySbcPaymasterV07(walletClient);
-  await fundSbcPaymasterV07(walletClient);
+  const trustedSignerWalletClient = getTrustedSignerWalletClient();
+  const trustedSigner = trustedSignerWalletClient.account.address;
+  const paymasterV07 = await deploySbcPaymasterV07(walletClient, trustedSigner, owner);
+  await fundSbcPaymasterV07(walletClient, paymasterV07);
 
+  // Create bundler client
   const altoBundlerV07 = createPimlicoBundlerClient({
     chain: getChain(),
     transport: http(process.env.BUNDLER_URL),
     entryPoint: ENTRYPOINT_ADDRESS_V07,
   });
 
+  // Create RPC handler
   const rpcHandler = createSbcRpcHandler(
     altoBundlerV07,
     paymasterV07,
-    walletClient
+    trustedSignerWalletClient
   );
   return rpcHandler;
 };
@@ -60,7 +66,7 @@ const routes: FastifyPluginAsync = async (server) => {
   });
 
   server.register(
-    async (instance: FastifyInstance, opts: FastifyServerOptions, done) => {
+    async (instance: FastifyInstance, opts: FastifyServerOptions) => {
       instance.get(
         "/",
         async (
@@ -82,8 +88,6 @@ const routes: FastifyPluginAsync = async (server) => {
       );
 
       instance.post("/rpc", await setupHandler());
-
-      done();
     },
     {
       prefix: "/v1",

@@ -4,5 +4,5 @@ export const DETERMINISTIC_DEPLOYER =
 export const SALT =
   "0x5bc0000000000000000000000000000000000000000000000000000000000000" as const;
 
-export const SBC_PAYMASTER_V07_Address =
-  "0xA15be9d5a13A324868754b141e5Ee4e3a5786217" as const;
+// After deployment, set this to the address of the SBC Paymaster v0.7
+export const SBC_PAYMASTER_V07_Address = "0x2b8a8249a254F2866cb7e220AEF790E551396dd2" as const;
