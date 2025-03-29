@@ -1,6 +1,7 @@
 import { HardhatUserConfig, task } from "hardhat/config";
 import "@nomicfoundation/hardhat-verify";
 import "@nomicfoundation/hardhat-ethers";
+import "@nomicfoundation/hardhat-viem";
 import dotenv from "dotenv";
 import { Wallet } from "ethers";
 
@@ -25,6 +26,56 @@ task("pk-to-address", "Get address from private key")
     } catch (error: any) {
       console.error(`Error: ${error.message}`);
     }
+  });
+
+// Task to deploy the paymaster
+task("deploy-paymaster", "Deploy the UUPS paymaster and proxy")
+  .setAction(async (_, hre) => {
+    const deployPaymaster = require("./scripts/tasks/deploy-paymaster");
+    await deployPaymaster.main(hre);
+  });
+
+// Task to upgrade the paymaster implementation
+task("upgrade-paymaster", "Upgrade the UUPS paymaster implementation")
+  .setAction(async (_, hre) => {
+    const deployPaymaster = require("./scripts/tasks/deploy-paymaster");
+    await deployPaymaster.upgrade(hre);
+  });
+
+// Task to deposit funds into the paymaster
+task("deposit-funds", "Fund the paymaster by sending ETH to the EntryPoint")
+  .setAction(async (_, hre) => {
+    const depositFunds = require("./scripts/tasks/deposit-funds");
+    await depositFunds.main(hre);
+  });
+
+// Task to withdraw funds from the paymaster
+task("withdraw-funds", "Withdraw funds from the paymaster")
+  .addParam("amount", "Amount of ETH to withdraw", "0.05")
+  .setAction(async (taskArgs, hre) => {
+    const withdrawFunds = require("./scripts/tasks/withdraw-funds");
+    await withdrawFunds.main(hre, taskArgs.amount);
+  });
+
+// Task to check the status of the paymaster
+task("paymaster-status", "Check the status of the paymaster contract")
+  .setAction(async (_, hre) => {
+    const checkStatus = require("./scripts/tasks/check-paymaster-status");
+    await checkStatus.main(hre);
+  });
+
+// Task to update the trusted signer
+task("update-signer", "Update the trusted signer address for the paymaster")
+  .addParam("address", "The new signer address")
+  .setAction(async (taskArgs, hre) => {
+    const updateSigner = require("./scripts/tasks/update-signer");
+    await updateSigner.main(hre, taskArgs.address);
+  });
+
+task("verify-source", "Verify the paymaster implementation and proxy contracts on Etherscan")
+  .setAction(async (args, hre) => {
+    const verifySource = require("./scripts/tasks/verify-source");
+    await verifySource.main(hre);
   });
 
 const config: HardhatUserConfig = {

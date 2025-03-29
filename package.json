@@ -12,9 +12,11 @@
   "dependencies": {
     "@account-abstraction/contracts": "0.7.0",
     "@fastify/cors": "^9.0.1",
-    "@openzeppelin/contracts": "^5.1.0",
+    "@openzeppelin/contracts": "^5.2.0",
+    "@openzeppelin/contracts-upgradeable": "^5.2.0",
     "copyfiles": "^2.4.1",
     "dotenv": "^16.4.7",
+    "ethers": "^6.13.5",
     "fastify": "^4.26.2",
     "permissionless": "^0.1.0",
     "tslib": "2.6.2",
@@ -24,11 +26,18 @@
     "zod-validation-error": "^3.0.3"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.8",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@nomicfoundation/hardhat-verify": "^2.0.0",
-    "@types/node": "20.12.4",
+    "@nomicfoundation/hardhat-viem": "^2.0.6",
+    "@openzeppelin/hardhat-upgrades": "^3.9.0",
+    "@typechain/ethers-v6": "^0.5.1",
+    "@typechain/hardhat": "^9.1.0",
+    "@types/node": "^20.12.4",
     "hardhat": "^2.22.17",
     "ts-node": "^10.9.2",
-    "tsx": "4.9.1"
+    "tsx": "4.9.1",
+    "typechain": "^8.3.2"
   }
 }

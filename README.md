@@ -15,9 +15,19 @@ To run this project, you will need to add the following environment variables to
 ```bash
 RPC_URL=""
 BUNDLER_URL=""
-DEPLOYER_PRIVATE_KEY=""
-TRUSTED_SIGNER_PRIVATE_KEY=""
 CHAIN=""
+ENTRY_POINT_V07_ADDRESS=""
+BASE_SEPOLIA_RPC_URL=""
+BASESCAN_API_KEY=""
+
+DEPLOYER="0x..."
+DEPLOYER_PRIVATE_KEY="0x..."
+TRUSTED_SIGNER="0x..."
+TRUSTED_SIGNER_PRIVATE_KEY="0x..."
+OWNER="0x..."
+OWNER_PRIVATE_KEY="0x..."
+
+PROXY_ADDRESS=""
 ```
 
 ## Compile the paymaster contract
@@ -25,45 +35,24 @@ CHAIN=""
 When you first clone the repository (or change the paymaster contract), you will need to (re)compile the paymaster contract and copy the ABI and bytecode to the `src/contracts/abi` subdirectory (using the `npm run copy` command).
 
 ```bash
-npm run compile
-```
-
-## Copy the ABI and bytecode to the contracts/abi subdirectory
-
-```bash
 npm run copy
 ```
 
-## Set up your paymaster contract address
+## Admin Tasks
 
-In `src/helps/contants.ts`, you can change the `SALT` to a Hex string of the same length to your liking. This is used by the CREATE2 opcode to deterministically generate the paymaster contract address.
+For details on the admin tasks, such as deploying, upgrading, funding the paymaster, etc., see the [ADMIN-README.md](ADMIN-README.md) file.
 
-At SBC, our practice is to use `0x5bc0000000000000000000000000000000000000000000000000000000000000` as the salt. For development purposes, you can use `0x5bc0000000000000000000000000000000000000000000000000000000000001`, `0x5bc0000000000000000000000000000000000000000000000000000000000002`, etc.
+## Run locally for development
 
-## Run locally
-
-Running the project locally is done by running the following command. THIS WILL DEPLOY (if not already deployed) and FUND (if necessary) the paymaster contract to the chain specified in the `CHAIN` environment variable. After deployment, the paymaster service will be available at `https://localhost:3000`.
+Running the project locally is done by running the following command. The paymaster service will be available at `https://localhost:3000`.
 
 ```bash
 npm run start
 ```
 
-## Contract Verification
-
-To verify your deployed contract on a block explorer:
-
-```bash
-# Verify a contract
-npm run verify:contract SignatureVerifyingPaymasterV07 0xYourDeployedContractAddress baseSepolia
-```
-
-This will verify and publish your contract source code to the blockchain explorer, making it readable and transparent for users.
-
-Supported networks: baseSepolia (add more as needed in hardhat.config.ts)
-
 ## Vercel Deployment
 
-As expected, deployment is done by pushing to the main branch. The deployment is done by Vercel, which will detect and deploy/fund the paymaster smart contract if it has not been deployed/funded.
+As expected, deployment is done by pushing to the main branch. The deployment is done by Vercel.
 
 ## Author
 

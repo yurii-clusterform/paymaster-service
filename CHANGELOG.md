@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0
+
+- Use Universal Upgradeable Proxy Standard (UUPS) pattern for `SignatureVerifyingPaymaster`
+- Added `ADMIN-README.md` with hardhat tasks to deploy and upgrade the paymaster, fund paymaster, and withdraw funds, update trusted signer, and check paymaster status
+
 ## 0.2.0
 
 - Use `SignatureVerifyingPaymaster` contract with ECDSA signature verification, verifying signer and owner
