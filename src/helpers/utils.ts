@@ -27,7 +27,7 @@ export const getChain = (): Chain => {
  * Returns a wallet client for the given chain.
  * @returns The wallet client.
  */
-export const getWalletClient = () => {
+export const getDeployerWalletClient = () => {
   const account = privateKeyToAccount(`0x${process.env.DEPLOYER_PRIVATE_KEY}`);
 
   return createWalletClient({

@@ -471,7 +471,7 @@ const handleSbcMethodV07 = async (
     typeof PaymasterV07Abi,
     PublicClient<Transport, Chain>
   >,
-  walletClient: WalletClient<Transport, Chain, Account>,
+  trustedSignerWalletClient: WalletClient<Transport, Chain, Account>,
   estimateGas: boolean
 ) => {
   try {
@@ -491,7 +491,7 @@ const handleSbcMethodV07 = async (
     ]) as Hex;
     
     // Sign the hash
-    const signature = await walletClient.signMessage({
+    const signature = await trustedSignerWalletClient.signMessage({
       message: { raw: hexToBytes(contractHash) }
     });
     
@@ -566,7 +566,7 @@ const handleSbcMethod = async (
     typeof PaymasterV07Abi,
     PublicClient<Transport, Chain>
   >,
-  walletClient: WalletClient<Transport, Chain, Account>,
+  trustedSignerWalletClient: WalletClient<Transport, Chain, Account>,
   parsedBody: JsonRpcSchema
 ) => {
   if (parsedBody.method === "pm_getPaymasterStubData") {
@@ -608,7 +608,7 @@ const handleSbcMethod = async (
       ]) as Hex;
       
       // Sign the hash
-      const signature = await walletClient.signMessage({
+      const signature = await trustedSignerWalletClient.signMessage({
         message: { raw: hexToBytes(calculatedUserOpHash) }
       });
       
@@ -648,7 +648,7 @@ const handleSbcMethod = async (
         userOperation as UserOperation<"v0.7">,
         altoBundlerV07,
         paymasterV07,
-        walletClient,
+        trustedSignerWalletClient,
         false
       );
     }
@@ -679,7 +679,7 @@ const handleSbcMethod = async (
         userOperation as UserOperation<"v0.7">,
         altoBundlerV07,
         paymasterV07,
-        walletClient,
+        trustedSignerWalletClient,
         true
       );
     }
@@ -702,7 +702,7 @@ export const createSbcRpcHandler = (
     typeof PaymasterV07Abi,
     PublicClient<Transport, Chain>
   >,
-  walletClient: WalletClient<Transport, Chain, Account>
+  trustedSignerWalletClient: WalletClient<Transport, Chain, Account>
 ) => {
   return async (request: FastifyRequest, _reply: FastifyReply) => {
     const body = request.body;
@@ -718,7 +718,7 @@ export const createSbcRpcHandler = (
       const result = await handleSbcMethod(
         altoBundlerV07,
         paymasterV07,
-        walletClient,
+        trustedSignerWalletClient,
         parsedBody.data
       );
 
