@@ -17,16 +17,16 @@ import { privateKeyToAccount } from "viem/accounts";
 
 dotenvConfig();
 
+const ENTRY_POINT_V07_ADDRESS = process.env.ENTRY_POINT_V07_ADDRESS as Address;
+if (!ENTRY_POINT_V07_ADDRESS || !isValidAddress(ENTRY_POINT_V07_ADDRESS)) {
+  throw new Error('ENTRY_POINT_V07_ADDRESS is required in environment variables');
+}
+
 /**
  * Deploy the UUPS paymaster and proxy
  */
 export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
   console.log('Deploying SignatureVerifyingPaymasterV07 with UUPS Proxy...');
-
-  const ENTRY_POINT_V07_ADDRESS = process.env.ENTRY_POINT_V07_ADDRESS as Address;
-  if (!ENTRY_POINT_V07_ADDRESS || !isValidAddress(ENTRY_POINT_V07_ADDRESS)) {
-    throw new Error('ENTRY_POINT_V07_ADDRESS is required in environment variables');
-  }
   
   const TRUSTED_SIGNER = process.env.TRUSTED_SIGNER as Address;
   if (!TRUSTED_SIGNER || !isValidAddress(TRUSTED_SIGNER)) {
@@ -59,7 +59,7 @@ export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
   const implementationDeployTx = await deployer.deployContract({
     abi: paymasterArtifact.abi,
     bytecode: paymasterArtifact.bytecode as Hex,
-    args: []
+    args: [ENTRY_POINT_V07_ADDRESS]
   });
 
   // Wait for deployment transaction
@@ -86,7 +86,7 @@ export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
   const initData = encodeFunctionData({
     abi: [initializeFunction],
     functionName: 'initialize',
-    args: [ENTRY_POINT_V07_ADDRESS, TRUSTED_SIGNER, deployerAddress]
+    args: [TRUSTED_SIGNER, deployerAddress]
   });
 
   // Deploy the proxy
@@ -121,7 +121,7 @@ export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
     paymaster.read.owner([]),
     paymaster.read.entryPoint([]),
     paymaster.read.verifyingSigner([]),
-    paymaster.read.version([])
+    paymaster.read.VERSION([])
   ]);
   
   console.log(`Owner: ${verificationResults[0]}`);
@@ -179,7 +179,7 @@ export async function upgrade(hre: HardhatRuntimeEnvironment): Promise<void> {
   const implementationDeployTx = await deployer.deployContract({
     abi: paymasterArtifact.abi,
     bytecode: paymasterArtifact.bytecode as Hex,
-    args: []
+    args: [ENTRY_POINT_V07_ADDRESS]
   });
 
   // Wait for deployment transaction

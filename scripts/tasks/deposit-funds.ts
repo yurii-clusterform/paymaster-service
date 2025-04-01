@@ -20,7 +20,7 @@ export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
     }
 
     // Amount to deposit (in ETH)
-    const depositAmount = '0.01'; // 0.01 ETH
+    const depositAmount = '0.02'; // 0.02 ETH
     const depositAmountWei = parseEther(depositAmount);
 
     console.log(`Funding paymaster at address: ${proxyAddress}`);

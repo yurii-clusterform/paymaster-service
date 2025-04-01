@@ -71,7 +71,7 @@ export async function main(hre: HardhatRuntimeEnvironment, amount: string = '0.0
 
     // Send transaction to withdraw funds
     console.log('\nWithdrawing funds...');
-    const txHash = await paymaster.write.withdraw([
+    const txHash = await paymaster.write.withdrawTo([
       deployerAddress,
       withdrawAmountWei
     ]);

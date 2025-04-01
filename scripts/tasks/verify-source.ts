@@ -1,8 +1,6 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types";
-import { getAddress, Address, encodeFunctionData, encodeAbiParameters, parseAbiParameters, http, createWalletClient } from 'viem';
+import { getAddress, Address } from 'viem';
 import { config as dotenvConfig } from 'dotenv';
-import { privateKeyToAccount } from "viem/accounts";
-import { getChain } from "../../src/helpers/utils";
 
 dotenvConfig();
 
@@ -40,19 +38,12 @@ export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
       throw new Error('TRUSTED_SIGNER is required in environment variables');
     }
 
-    // Get the deployer address
-    const deployer = createWalletClient({
-      chain: getChain(),
-      transport: http(process.env.RPC_URL),
-      account: privateKeyToAccount(`0x${process.env.DEPLOYER_PRIVATE_KEY}`),
-    });
-    const deployerAddress = deployer.account.address;
-
     console.log('\nVerifying implementation contract...');
     try {
       await hre.run("verify:verify", {
         address: implementationAddress,
         contract: "contracts/SignatureVerifyingPaymasterV07.sol:SignatureVerifyingPaymasterV07",
+        constructorArguments: [ENTRY_POINT_V07_ADDRESS]
       });
       console.log('Implementation verification successful ✅');
     } catch (error: any) {

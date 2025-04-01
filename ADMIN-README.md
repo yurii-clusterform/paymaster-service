@@ -56,16 +56,6 @@ npx hardhat deploy-paymaster --network <your-network>
 
 Save the proxy address that is output by the script in your `.env` file.
 
-### Funding the Paymaster
-
-Send ETH to the proxy address.
-
-Call the `deposit()` function on the proxy to transfer funds to the EntryPoint:
-
-```bash
-npx hardhat deposit-funds --network <your-network>
-```
-
 ### Checking Paymaster Status
 
 To check the current status of your paymaster:
@@ -96,34 +86,19 @@ Paymaster ETH balance: 0.01 ETH
 Contract version: 2
 ```
 
-### Upgrading
+### Funding the Paymaster
 
-When you need to upgrade the implementation:
+Send ETH to the proxy address.
 
-1. Make changes to the `SignatureVerifyingPaymasterV07.sol` contract and update the version number
-2. Make sure your changes are compatible with the existing storage layout (only add new variables at the end of the contract)
-3. Ensure the proxy address (PROXY_ADDRESS) is set in your `.env` file
-4. Run the upgrade task:
+Configure the amount of ETH in `scripts/tasks/deposit-funds.ts`. Call the `deposit()` function on the proxy to transfer funds to the EntryPoint:
 
 ```bash
-npx hardhat upgrade-paymaster --network <your-network>
+npx hardhat deposit-funds --network <your-network>
 ```
 
-### Managing Funds
+### Withdrawing Funds
 
-To deposit more funds:
-
-```bash
-npx hardhat fund-paymaster --network <your-network>
-```
-
-or
-
-```bash
-npx hardhat fund-paymaster --amount 0.01 --network <your-network>
-```
-
-To withdraw funds:
+To withdraw funds from EntryPoint back to the proxy:
 
 ```bash
 npx hardhat withdraw-funds --network <your-network>
@@ -135,12 +110,36 @@ or
 npx hardhat withdraw-funds --amount 0.01 --network <your-network>
 ```
 
+### Verifying the Contract source
+
+To verify the implementation contract source code on Etherscan:
+
+```bash
+npx hardhat verify-source --network <your-network>
+```
+
+To verify the proxy contract in order to access read and write functions on the blockchain scanner interface, go to the proxy address and click on the "Contract" tab, then click on the "Is this a proxy?" button and follow the instructions there.
+
 ### Updating the Trusted Signer
 
 To change the address authorized to sign paymaster approvals:
 
 ```bash
 npx hardhat update-signer --address 0xNewSignerAddress --network <your-network>
+```
+
+### Upgrading the implementation
+
+When you need to upgrade the implementation:
+
+1. Make changes to the `SignatureVerifyingPaymasterV07.sol` contract and update the version number
+2. Make sure your changes are compatible with the existing storage layout (only add new variables at the end of the contract)
+3. Compile the contract successfully (`npm run compile`) and copy the ABI and bytecode to the `contracts/abi` folder (`npm run copy`)
+4. Ensure the proxy address (PROXY_ADDRESS) is set in your `.env` file
+5. Run the upgrade task:
+
+```bash
+npx hardhat upgrade-paymaster --network <your-network>
 ```
 
 ## Important Considerations
@@ -187,12 +186,6 @@ contract PaymasterV2 {
     uint256[48] private __gap;    // 50 - 2 = 48 slots remaining
 }
 ```
-
-### Security
-
-- Only the contract owner can upgrade the implementation
-- Consider implementing a timelock for upgrades in the `_authorizeUpgrade` function
-- Always test upgrades on testnets before deploying to production
 
 ### Testing
 

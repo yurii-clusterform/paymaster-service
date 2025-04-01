@@ -2,13 +2,13 @@
 pragma solidity ^0.8.23;
 
 import "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
-import "@account-abstraction/contracts/interfaces/IPaymaster.sol";
+import "@account-abstraction/contracts/core/BasePaymaster.sol";
 import "@account-abstraction/contracts/core/UserOperationLib.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
  * @title SignatureVerifyingPaymasterV07
@@ -17,89 +17,47 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
  * 
  * This paymaster uses timestamps for validity periods and allows transactions
  * to be signed by a trusted entity before they're submitted on-chain.
- * 
- * This contract is upgradeable using the UUPS proxy pattern.
  */
-contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, IPaymaster, OwnableUpgradeable {
+contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BasePaymaster {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
     using UserOperationLib for PackedUserOperation;
-
-    // The EntryPoint address that will call this paymaster
-    IEntryPoint public entryPoint;
 
     // Address authorized to sign paymaster approvals
     address public verifyingSigner;
 
     // Version number for upgrade tracking
-    uint256 public constant VERSION = 2;
+    uint256 public constant VERSION = 3;
 
     // Custom errors for better gas efficiency and clearer error reporting
     error InvalidSignatureLength(uint256 length);
     error SignerMismatch(address recovered, address expected);
     error InvalidPaymasterData();
     error UnauthorizedUpgrade();
-    error OnlyEntryPoint();
 
     // Events
+    event VerifyingSignerUpdated(address indexed oldSigner, address indexed newSigner);
     event EntryPointChanged(address indexed newEntryPoint);
-    event PostOpReverted(bytes context);
-    event PostOpSucceeded(PostOpMode mode, bytes context, uint256 actualGasCost, uint256 actualUserOpFeePerGas);
     event Validated(bytes32 userOpHash, uint256 maxCost, uint48 validUntil, uint48 validAfter);
 
-    // Modifiers
-    modifier onlyEntryPoint() {
-        if (msg.sender != address(entryPoint)) revert OnlyEntryPoint();
-        _;
-    }
-
-    /**
-     * @dev Packs validation timestamps and signature status into the format 
-     * expected by the EntryPoint contract
-     * 
-     * @param sigFailed True if signature validation failed
-     * @param validUntil Timestamp until which the signature is valid
-     * @param validAfter Timestamp after which the signature is valid
-     * @return packed A uint256 containing all validation data
-     */
-    function _packValidationData(
-        bool sigFailed,
-        uint48 validUntil,
-        uint48 validAfter
-    ) internal pure returns (uint256) {
-        return uint256(
-            (sigFailed ? 1 : 0) |
-            (uint256(validUntil) << 160) |
-            (uint256(validAfter) << 208)
-        );
-    }
-
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
+    constructor(IEntryPoint _entryPoint) BasePaymaster(_entryPoint) {
         _disableInitializers();
     }
 
     /**
-     * @dev Initializes the paymaster with EntryPoint, signer address, and owner
-     * @param _entryPoint The EntryPoint contract address that will call this paymaster
+     * @dev Initializes the paymaster with verifying signer address and owner
      * @param _verifyingSigner The address authorized to sign transaction approvals
-     * @param _owner The address that will be set as the owner of this contract
+     * @param _owner The address that will be set as owner of this contract
      */
-    function initialize(IEntryPoint _entryPoint, address _verifyingSigner, address _owner) public initializer {
+    function initialize(address _verifyingSigner, address _owner) public initializer {
         __UUPSUpgradeable_init();
-        __Ownable_init(_owner);
-        
-        entryPoint = _entryPoint;
         verifyingSigner = _verifyingSigner;
-    }
-
-    /**
-     * @dev Updates the address of the EntryPoint contract
-     * @param _entryPoint The new EntryPoint contract address
-     */
-    function setEntryPoint(IEntryPoint _entryPoint) external onlyOwner {
-        entryPoint = _entryPoint;
-        emit EntryPointChanged(address(_entryPoint));
+        
+        // Transfer ownership to the specified owner
+        // This is necessary because BasePaymaster's constructor runs for the implementation
+        // but not for the proxy, so we need to set ownership in the initializer
+        _transferOwnership(_owner);
     }
 
     /**
@@ -107,31 +65,17 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, IPaym
      * @param _verifyingSigner The new authorized signer address
      */
     function setVerifyingSigner(address _verifyingSigner) external onlyOwner {
+        address oldSigner = verifyingSigner;
         verifyingSigner = _verifyingSigner;
+        emit VerifyingSignerUpdated(oldSigner, _verifyingSigner);
     }
 
     /**
      * @dev Function that authorizes upgrades to the proxy. Only owner can upgrade.
      * Required by UUPSUpgradeable.
      */
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+    function _authorizeUpgrade(address) internal override onlyOwner {
         // Additional authorization logic can be added here if needed
-    }
-
-    /**
-     * @dev Deposits funds into the EntryPoint for this paymaster
-     */
-    function deposit() public payable {
-        entryPoint.depositTo{value: msg.value}(address(this));
-    }
-
-    /**
-     * @dev Withdraws funds from the EntryPoint to the specified address
-     * @param withdrawAddress The address to withdraw to
-     * @param amount The amount to withdraw
-     */
-    function withdraw(address payable withdrawAddress, uint256 amount) public onlyOwner {
-        entryPoint.withdrawTo(withdrawAddress, amount);
     }
 
     /**
@@ -148,7 +92,7 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, IPaym
      * @return signature The 65-byte signature to verify
      */
     function parsePaymasterData(bytes calldata paymasterData)
-        public
+        internal
         pure
         returns (
             uint48 validUntil,
@@ -197,7 +141,29 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, IPaym
     }
 
     /**
+     * @dev Packs validation timestamps and signature status into the format 
+     * expected by the EntryPoint contract
+     * 
+     * @param sigFailed True if signature validation failed
+     * @param validUntil Timestamp until which the signature is valid
+     * @param validAfter Timestamp after which the signature is valid
+     * @return packed A uint256 containing all validation data
+     */
+    function _packValidationData(
+        bool sigFailed,
+        uint48 validUntil,
+        uint48 validAfter
+    ) internal pure returns (uint256) {
+        return uint256(
+            (sigFailed ? 1 : 0) |
+            (uint256(validUntil) << 160) |
+            (uint256(validAfter) << 208)
+        );
+    }
+
+    /**
      * @dev The main validation function called by the EntryPoint during UserOperation validation
+     * BasePaymaster handles calling this internal method from the external validatePaymasterUserOp
      * 
      * @param userOp The UserOperation being validated
      * @param userOpHash Hash of the user operation
@@ -205,17 +171,13 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, IPaym
      * @return context Data to pass to postOp (contains maxCost)
      * @return validationData Packed validation result and validity timeframe
      */
-    function validatePaymasterUserOp(
+    function _validatePaymasterUserOp(
         PackedUserOperation calldata userOp,
         bytes32 userOpHash,
         uint256 maxCost
-    ) external virtual override onlyEntryPoint returns (bytes memory context, uint256 validationData) {
-        // Check if paymaster has enough deposit
-        require(entryPoint.getDepositInfo(address(this)).deposit >= maxCost, 
-            "SignatureVerifyingPaymaster: deposit too low");
-
+    ) internal virtual override returns (bytes memory context, uint256 validationData) {
         // Extract timestamps and signature from paymaster data
-        bytes calldata paymasterData = userOp.paymasterAndData[20:]; // Skip the paymaster address (20 bytes)
+        bytes calldata paymasterData = userOp.paymasterAndData[UserOperationLib.PAYMASTER_DATA_OFFSET:]; 
         
         // Parse the paymaster data
         (uint48 validUntil, uint48 validAfter, bytes calldata signature) = 
@@ -224,8 +186,7 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, IPaym
         // Generate the hash using sender address and timestamps
         bytes32 hash = getHash(validUntil, validAfter, address(this), userOp.sender);
         
-        // Convert to EIP-191 format (prefixed) to match the format used when signing
-        // with walletClient.signMessage() in JavaScript/viem
+        // Convert to EIP-191 format
         bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(hash);
         
         // Recover signer address from signature
@@ -277,16 +238,25 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, IPaym
      * @param context The context value returned by validatePaymasterUserOp
      * @param actualGasCost The actual gas cost of the transaction
      */
-    function postOp(
+    function _postOp(
         PostOpMode mode,
         bytes calldata context,
         uint256 actualGasCost,
         uint256 actualUserOpFeePerGas
-    ) external override onlyEntryPoint {
-        if (mode == PostOpMode.opReverted) {
-            emit PostOpReverted(context);
-        } else {
-            emit PostOpSucceeded(mode, context, actualGasCost, actualUserOpFeePerGas);
-        }
+    ) internal virtual override {
+        // No additional logic needed at this time
+        (mode, context, actualGasCost, actualUserOpFeePerGas); // Prevent unused parameter warnings
     }
+
+    // In case contract receives ETH directly to its address
+    receive() external payable {
+        deposit();
+    }
+    
+    /**
+     * @dev This empty reserved space is put in place to allow future versions to add new
+     * variables without shifting down storage in the inheritance chain.
+     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    uint256[50] private __gap;
 }
