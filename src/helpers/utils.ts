@@ -13,11 +13,12 @@ export const maxBigInt = (a: bigint, b: bigint) => {
 };
 
 /**
- * Returns the chain to use based on the CHAIN environment variable.
+ * Returns the chain to use based on the chain name.
+ * @param chain The name of the chain to use.
  * @returns The chain to use.
  */
-export const getChain = (): Chain => {
-  if (process.env.CHAIN === "baseSepolia") {
+export const getChain = (chain: string): Chain => {
+  if (chain === "baseSepolia") {
     return baseSepolia;
   }
   return base;
@@ -25,28 +26,61 @@ export const getChain = (): Chain => {
 
 /**
  * Returns a wallet client for the given chain.
+ * @param chain The name of the chain to use.
  * @returns The wallet client.
  */
-export const getDeployerWalletClient = () => {
+export const getDeployerWalletClient = (chain: string) => {
   const account = privateKeyToAccount(`0x${process.env.DEPLOYER_PRIVATE_KEY}`);
 
   return createWalletClient({
     account,
-    chain: getChain(),
-    transport: http(process.env.RPC_URL),
+    chain: getChain(chain),
+    transport: http(getRPCUrl(chain)),
   });
 };
 
 /**
  * Returns a wallet client for the trusted signer.
+ * @param chain The name of the chain to use.
  * @returns The wallet client for the trusted signer.
  */
-export const getTrustedSignerWalletClient = () => {
+export const getTrustedSignerWalletClient = (chain: string) => {
   const account = privateKeyToAccount(`0x${process.env.TRUSTED_SIGNER_PRIVATE_KEY}`);
 
   return createWalletClient({
     account,
-    chain: getChain(),
-    transport: http(process.env.RPC_URL),
+    chain: getChain(chain),
+    transport: http(getRPCUrl(chain)),
   });
+};
+
+export const getRPCUrl = (chain: string) => {
+  if (chain === "baseSepolia") {
+    return process.env.BASE_SEPOLIA_RPC_URL;
+  }
+  return process.env.BASE_RPC_URL;
+};
+
+/**
+ * Returns the bundler URL for the given chain.
+ * @param chain The name of the chain to use.
+ * @returns The bundler URL.
+ */
+export const getBundlerUrl = (chain: string) => {
+  if (chain === "baseSepolia") {
+    return process.env.BASE_SEPOLIA_BUNDLER_URL;
+  }
+  return process.env.BASE_BUNDLER_URL;
+};
+
+/**
+ * Returns the scanner URL for the given chain.
+ * @param chain The name of the chain to use.
+ * @returns The scanner URL.
+ */
+export const getScannerUrl = (chain: string) => {
+  if (chain === "baseSepolia") {
+    return "https://sepolia.basescan.org";
+  }
+  return "https://basescan.org";
 };

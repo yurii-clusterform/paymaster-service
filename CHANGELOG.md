@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1
+
+- Changed to deterministic deployment of implementation and proxy contracts
+- Changed to deterministic upgrading of implementation contract
+- Chain-specific admin tasks
+- Chain-specific wallet clients
+
 ## 0.3.0
 
 - Use Universal Upgradeable Proxy Standard (UUPS) pattern for `SignatureVerifyingPaymaster`

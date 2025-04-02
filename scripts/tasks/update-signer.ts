@@ -1,8 +1,7 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { getAddress, Address, createPublicClient, http, createWalletClient } from 'viem';
 import { config as dotenvConfig } from 'dotenv';
-import { getChain } from "../../src/helpers/utils";
-import { privateKeyToAccount } from "viem/accounts";
+import { getChain, getDeployerWalletClient, getRPCUrl } from "../../src/helpers/utils";
 
 dotenvConfig();
 
@@ -11,6 +10,8 @@ dotenvConfig();
  */
 export async function main(hre: HardhatRuntimeEnvironment, newSignerAddress: string): Promise<void> {
   try {
+    const chain = hre.network.name;
+
     // Validate the new signer address
     if (!newSignerAddress || !isValidAddress(newSignerAddress)) {
       throw new Error('Invalid or missing signer address');
@@ -26,15 +27,11 @@ export async function main(hre: HardhatRuntimeEnvironment, newSignerAddress: str
     console.log(`New signer address: ${newSignerAddress}`);
 
     // Setup clients
-    const deployer = createWalletClient({
-      chain: getChain(),
-      transport: http(process.env.RPC_URL),
-      account: privateKeyToAccount(`0x${process.env.DEPLOYER_PRIVATE_KEY}`),
-    });
+    const deployer = getDeployerWalletClient(chain);
     const deployerAddress = deployer.account.address;
     const publicClient = createPublicClient({
-      chain: getChain(),
-      transport: http(process.env.RPC_URL),
+      chain: getChain(chain),
+      transport: http(getRPCUrl(chain)),
     });
     
     console.log(`Using account: ${deployerAddress}`);

@@ -1,31 +1,45 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { 
   createPublicClient, 
-  createWalletClient, 
   http, 
-  parseEther, 
-  formatEther, 
   getAddress, 
   Address, 
-  Hex, 
+  Hex,
   encodeFunctionData,
-  GetContractReturnType
+  encodeAbiParameters,
+  concat,
+  getCreate2Address,
+  keccak256,
 } from 'viem';
 import { config as dotenvConfig } from 'dotenv';
-import { getChain } from "../../src/helpers/utils";
-import { privateKeyToAccount } from "viem/accounts";
+import { getChain, getDeployerWalletClient, getRPCUrl } from "../../src/helpers/utils";
 
 dotenvConfig();
+
+let version = '000000';
 
 const ENTRY_POINT_V07_ADDRESS = process.env.ENTRY_POINT_V07_ADDRESS as Address;
 if (!ENTRY_POINT_V07_ADDRESS || !isValidAddress(ENTRY_POINT_V07_ADDRESS)) {
   throw new Error('ENTRY_POINT_V07_ADDRESS is required in environment variables');
 }
 
+// CREATE2 Factory address - same on all chains
+const CREATE2_FACTORY = '0x4e59b44847b379578588920cA78FbF26c0B4956C' as const;
+
+// Create a unique salt based on the contract name and version
+const createSaltWithVersion = (contractType: 'implementation' | 'proxy', version: string) => keccak256(
+  encodeAbiParameters(
+    [{ type: 'string' }, { type: 'string' }, { type: 'string' }],
+    ['SignatureVerifyingPaymasterV07', contractType, version]
+  )
+);
+
 /**
  * Deploy the UUPS paymaster and proxy
  */
 export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
+  const chain = hre.network.name;
+
   console.log('Deploying SignatureVerifyingPaymasterV07 with UUPS Proxy...');
   
   const TRUSTED_SIGNER = process.env.TRUSTED_SIGNER as Address;
@@ -35,17 +49,14 @@ export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
 
   // Setup viem clients
   const publicClient = createPublicClient({
-    chain: getChain(),
-    transport: http(process.env.RPC_URL),
+    chain: getChain(chain),
+    transport: http(getRPCUrl(chain)),
   });
 
   // Get the deployer account
-  const deployer = createWalletClient({
-    chain: getChain(),
-    transport: http(process.env.RPC_URL),
-    account: privateKeyToAccount(`0x${process.env.DEPLOYER_PRIVATE_KEY}`),
-  });
+  const deployer = getDeployerWalletClient(chain);
   const deployerAddress = deployer.account.address;
+
   console.log(`Deploying with account: ${deployerAddress}`);
   console.log(`EntryPoint address: ${ENTRY_POINT_V07_ADDRESS}`);
   console.log(`Trusted signer: ${TRUSTED_SIGNER}`);
@@ -55,24 +66,130 @@ export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
   const proxyArtifact = await hre.artifacts.readArtifact('ERC1967Proxy');
   
   // Deploy the implementation contract first
-  console.log("Deploying implementation contract...");
-  const implementationDeployTx = await deployer.deployContract({
-    abi: paymasterArtifact.abi,
-    bytecode: paymasterArtifact.bytecode as Hex,
-    args: [ENTRY_POINT_V07_ADDRESS]
+  console.log("Preparing deterministic implementation deployment...");
+  
+  
+
+  let SALT = createSaltWithVersion('implementation', version);
+  
+  // Construct the constructor args first
+  const constructorArgs = encodeAbiParameters(
+    [{ type: 'address' }],
+    [ENTRY_POINT_V07_ADDRESS]
+  );
+
+  // Log the components for validation
+  console.log('\nValidating deployment data:');
+  console.log(`Bytecode length: ${(paymasterArtifact.bytecode as string).length}`);
+  console.log(`Constructor args: ${constructorArgs}`);
+  
+  // Construct the full initialization code
+  let initCode = concat([
+    paymasterArtifact.bytecode as Hex,
+    constructorArgs
+  ]);
+
+  let computedAddress = getCreate2Address({
+    from: CREATE2_FACTORY,
+    salt: SALT,
+    bytecode: initCode
   });
 
-  // Wait for deployment transaction
-  const implementationReceipt = await publicClient.waitForTransactionReceipt({
-    hash: implementationDeployTx
-  });
+  console.log(`\nComputed address: ${computedAddress}`);
   
-  if (!implementationReceipt.contractAddress) {
-    throw new Error("Implementation deployment failed");
+  // Check if there's already code at the computed address
+  const existingCode = await publicClient.getBytecode({ address: computedAddress });
+  if (existingCode) {
+    console.log(`Contract already deployed at computed address ${computedAddress}`);
+    console.log("Trying next version...");
+    
+    // Try versions until we find an unused address
+    let versionNum = 2;
+    while (versionNum <= 10) {
+      version = versionNum.toString();
+      SALT = createSaltWithVersion('implementation', version);
+      computedAddress = getCreate2Address({
+        from: CREATE2_FACTORY,
+        salt: SALT,
+        bytecode: initCode
+      });
+      
+      const code = await publicClient.getBytecode({ address: computedAddress });
+      if (!code) {
+        console.log(`Found unused address with version ${version}`);
+        break;
+      }
+      console.log(`Version ${version} already used, trying next...`);
+      versionNum++;
+    }
+    
+    if (versionNum > 10) {
+      throw new Error("Could not find unused version after 10 attempts");
+    }
   }
   
-  const implementationAddress = implementationReceipt.contractAddress;
-  console.log(`Implementation deployed to: ${implementationAddress}`);
+  console.log(`Using version ${version} for deployment`);
+  console.log(`Computed deterministic implementation address: ${computedAddress}`);
+
+  // Deploy using CREATE2 factory - using direct contract call
+  console.log("\nPreparing implementation deployment...");
+  
+  // Format the call data for the CREATE2 factory
+  const deployData = concat([
+    SALT,
+    initCode
+  ]);
+
+  // Declare implementation address outside try block
+  let implementationAddress: Address;
+
+  try {
+    console.log('\nSending deployment transaction...');
+    const implementationDeployTx = await deployer.sendTransaction({
+      to: CREATE2_FACTORY,
+      data: deployData,
+    });
+
+    // Wait for deployment transaction with progress logging
+    console.log(`\nWaiting for implementation deployment transaction: ${implementationDeployTx}`);
+    const implementationReceipt = await publicClient.waitForTransactionReceipt({
+      hash: implementationDeployTx,
+      timeout: 60_000, // 1 minute timeout
+      onReplaced: (replacement) => {
+        console.log(`Transaction replaced: ${replacement.reason}`);
+        console.log(`New hash: ${replacement.transaction.hash}`);
+      }
+    });
+
+    if (implementationReceipt.status === 'reverted') {
+      throw new Error("Implementation deployment failed - transaction reverted");
+    }
+
+    implementationAddress = computedAddress; 
+    console.log(`\nImplementation deployed successfully to: ${implementationAddress}`);
+
+    // Verify the implementation has code
+    const implCode = await publicClient.getBytecode({ address: implementationAddress });
+    if (!implCode) {
+      throw new Error("Implementation deployment failed - no code at deployed address");
+    }
+    console.log(`Implementation code size: ${implCode.length}`);
+
+  } catch (error) {
+    console.error('\nDeployment failed with error:');
+    console.error(error);
+    
+    // If we have error.data, try to decode it
+    if ((error as any).data) {
+      console.error('\nError data:', (error as any).data);
+    }
+    
+    throw error;
+  }
+
+  if (!implementationAddress) {
+    throw new Error("Implementation address not set");
+  }
 
   // Prepare initialization data
   const initializeFunction = paymasterArtifact.abi.find((item: any) => 
@@ -89,32 +206,67 @@ export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
     args: [TRUSTED_SIGNER, deployerAddress]
   });
 
-  // Deploy the proxy
+  // Prepare proxy deployment using CREATE2
+  console.log("Preparing deterministic proxy deployment...");
+  
+  // Create proxy salt - different from implementation salt
+  const PROXY_SALT = createSaltWithVersion('proxy', version);
+
+  // Create proxy initialization code (bytecode + constructor args)
+  const proxyInitCode = concat([
+    proxyArtifact.bytecode as Hex,
+    encodeAbiParameters(
+      [{ type: 'address', name: 'implementation' }, { type: 'bytes', name: 'data' }],
+      [implementationAddress, initData]
+    )
+  ]);
+
+  // Compute the deterministic proxy address
+  const computedProxyAddress = getCreate2Address({
+    from: CREATE2_FACTORY,
+    salt: PROXY_SALT,
+    bytecode: proxyInitCode
+  });
+  
+  console.log(`Computed deterministic proxy address: ${computedProxyAddress}`);
+
+  // Deploy proxy using CREATE2 factory
   console.log("Deploying proxy contract...");
-  const proxyDeployTx = await deployer.deployContract({
-    abi: proxyArtifact.abi,
-    bytecode: proxyArtifact.bytecode as Hex,
-    args: [implementationAddress, initData]
-  });
   
-  // Wait for proxy deployment
+  // Format the call data for the CREATE2 factory
+  const proxyDeployData = concat([
+    PROXY_SALT,
+    proxyInitCode
+  ]);
+
+  const proxyDeployTx = await deployer.sendTransaction({
+    to: CREATE2_FACTORY,
+    data: proxyDeployData,
+  });
+
+  // Wait for proxy deployment with progress logging
+  console.log(`Waiting for proxy deployment transaction: ${proxyDeployTx}`);
   const proxyReceipt = await publicClient.waitForTransactionReceipt({
-    hash: proxyDeployTx
+    hash: proxyDeployTx,
+    timeout: 60_000, // 1 minute timeout
+    onReplaced: (replacement) => {
+      console.log(`Transaction replaced: ${replacement.reason}`);
+      console.log(`New hash: ${replacement.transaction.hash}`);
+    }
   });
   
-  if (!proxyReceipt.contractAddress) {
-    throw new Error("Proxy deployment failed");
-  }
-  
-  const proxyAddress = proxyReceipt.contractAddress;
+  const proxyAddress = computedProxyAddress;
   console.log(`Proxy deployed to: ${proxyAddress}`);
   
   // Get the proxy contract with the paymaster ABI
   const paymaster = await hre.viem.getContractAt(
     'SignatureVerifyingPaymasterV07',
-    proxyAddress
+    proxyAddress as Address,
   );
-  
+
+  // Sleep for 5 seconds
+  await new Promise(resolve => setTimeout(resolve, 5000));
+
   // Verify initialization
   console.log('\nVerifying initialization...');
   const verificationResults = await Promise.all([
@@ -140,6 +292,8 @@ export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
  * Upgrade the UUPS paymaster implementation
  */
 export async function upgrade(hre: HardhatRuntimeEnvironment): Promise<void> {
+  const chain = hre.network.name;
+
   const PROXY_ADDRESS = process.env.PROXY_ADDRESS as Address;
   if (!PROXY_ADDRESS || !isValidAddress(PROXY_ADDRESS)) {
     throw new Error('PROXY_ADDRESS is required in environment variables');
@@ -150,14 +304,10 @@ export async function upgrade(hre: HardhatRuntimeEnvironment): Promise<void> {
   
   // Setup viem clients
   const publicClient = createPublicClient({
-    chain: getChain(),
-    transport: http(process.env.RPC_URL),
+    chain: getChain(chain),
+    transport: http(getRPCUrl(chain)),
   });
-  const deployer = createWalletClient({
-    chain: getChain(),
-    transport: http(process.env.RPC_URL),
-    account: privateKeyToAccount(`0x${process.env.DEPLOYER_PRIVATE_KEY}`),
-  });
+  const deployer = getDeployerWalletClient(chain);
   
   // Get the implementation address (using storage slot for ERC1967)
   const implementationSlot = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
@@ -174,44 +324,88 @@ export async function upgrade(hre: HardhatRuntimeEnvironment): Promise<void> {
   
   // Get the contract artifact
   const paymasterArtifact = await hre.artifacts.readArtifact('SignatureVerifyingPaymasterV07');
-  console.log("Deploying new implementation...");
+  console.log("Preparing deterministic deployment...");
   
-  const implementationDeployTx = await deployer.deployContract({
-    abi: paymasterArtifact.abi,
-    bytecode: paymasterArtifact.bytecode as Hex,
-    args: [ENTRY_POINT_V07_ADDRESS]
+  // Create a unique salt based on the contract name and version
+  const SALT = createSaltWithVersion('implementation', version);
+  
+  // Prepare the init code (contract bytecode + constructor args)
+  const initCode = concat([
+    paymasterArtifact.bytecode as Hex,
+    encodeAbiParameters(
+      [{ type: 'address' }],
+      [ENTRY_POINT_V07_ADDRESS]
+    )
+  ]);
+
+  // Compute the deterministic address that will be created
+  const computedAddress = getCreate2Address({
+    from: CREATE2_FACTORY,
+    salt: SALT,
+    bytecode: initCode
+  });
+  
+  console.log(`Computed deterministic address: ${computedAddress}`);
+
+  // Format the call data for the CREATE2 factory
+  const deployData = concat([
+    SALT,
+    initCode
+  ]);
+
+  // Deploy using CREATE2 factory
+  console.log("Deploying new implementation...");
+  const implementationDeployTx = await deployer.sendTransaction({
+    to: CREATE2_FACTORY,
+    data: deployData,
   });
 
   // Wait for deployment transaction
   const implementationReceipt = await publicClient.waitForTransactionReceipt({
-    hash: implementationDeployTx
+    hash: implementationDeployTx,
+    timeout: 60_000
   });
   
-  if (!implementationReceipt.contractAddress) {
+  if (implementationReceipt.status === 'reverted') {
     throw new Error("Implementation deployment failed");
   }
   
-  const implementationAddress = implementationReceipt.contractAddress;
+  const implementationAddress = computedAddress;
   console.log(`New implementation deployed to: ${implementationAddress}`);
   
-  // Upgrade the proxy by calling the upgradeToAndCall function
+  // Upgrade the proxy by calling upgradeToAndCall
   console.log("Upgrading proxy implementation...");
   
-  // Get the proxy contract with UUPS interface
-  const proxy = await hre.viem.getContractAt(
-    'UUPSUpgradeable',
-    PROXY_ADDRESS
-  );
+  // Get the upgradeToAndCall function from the ABI
+  const upgradeAbi = (await hre.artifacts.readArtifact('UUPSUpgradeable')).abi;
+  const upgradeFunction = upgradeAbi.find(x => x.type === 'function' && x.name === 'upgradeToAndCall');
   
-  const upgradeTx = await proxy.write.upgradeToAndCall([
-    implementationAddress,
-    '0x' as Hex // No initialization data needed for upgrade
-  ]);
+  if (!upgradeFunction) {
+    throw new Error('upgradeToAndCall function not found in ABI');
+  }
+
+  // Encode the upgrade call
+  const upgradeCalldata = encodeFunctionData({
+    abi: [upgradeFunction],
+    functionName: 'upgradeToAndCall',
+    args: [implementationAddress, '0x' as Hex]
+  });
+
+  // Send the upgrade transaction
+  const upgradeTx = await deployer.sendTransaction({
+    to: PROXY_ADDRESS,
+    data: upgradeCalldata,
+  });
   
   // Wait for upgrade transaction
-  await publicClient.waitForTransactionReceipt({
-    hash: upgradeTx
+  const upgradeReceipt = await publicClient.waitForTransactionReceipt({
+    hash: upgradeTx,
+    timeout: 60_000
   });
+
+  if (upgradeReceipt.status === 'reverted') {
+    throw new Error("Upgrade transaction reverted");
+  }
   
   // Verify the new implementation address
   const newImplAddressData = await publicClient.getStorageAt({
@@ -221,6 +415,11 @@ export async function upgrade(hre: HardhatRuntimeEnvironment): Promise<void> {
   
   const newImpl = getAddress('0x' + (newImplAddressData?.slice(26) || ''));
   console.log(`New implementation address verified: ${newImpl}`);
+  
+  if (newImpl.toLowerCase() !== implementationAddress.toLowerCase()) {
+    throw new Error(`Implementation address mismatch. Expected ${implementationAddress}, got ${newImpl}`);
+  }
+
   console.log("Upgrade completed successfully!");
 }
 

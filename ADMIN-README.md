@@ -187,14 +187,6 @@ contract PaymasterV2 {
 }
 ```
 
-### Testing
-
-Test both the initial deployment and upgrades:
-
-```bash
-npx hardhat test test/PaymasterUpgrade.test.ts
-```
-
 ## Using the Paymaster in Your Application
 
 The proxy address is the address to use in your application when interacting with the paymaster. This address will remain constant even as the implementation is upgraded.

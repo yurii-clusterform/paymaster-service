@@ -1,6 +1,7 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { getAddress, Address } from 'viem';
 import { config as dotenvConfig } from 'dotenv';
+import { getScannerUrl } from "../../src/helpers/utils";
 
 dotenvConfig();
 
@@ -9,6 +10,8 @@ dotenvConfig();
  */
 export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
   try {
+    const chain = hre.network.name;
+
     // Get the proxy address from environment
     const proxyAddress = process.env.PROXY_ADDRESS;
     if (!proxyAddress || !isValidAddress(proxyAddress)) {
@@ -55,10 +58,10 @@ export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
     }
 
     console.log('\nVerification process completed!');
-    console.log('You can now view your contracts on Sepolia BaseScan:');
-    console.log(`Implementation: https://sepolia.basescan.org/address/${implementationAddress}`);
+    console.log('You can now view your contracts:');
+    console.log(`Implementation: ${getScannerUrl(chain)}/address/${implementationAddress}`);
     console.log("\n");
-    console.log(`Proxy: https://sepolia.basescan.org/address/${proxyAddress}`);
+    console.log(`Proxy: ${getScannerUrl(chain)}/address/${proxyAddress}`);
     console.log("To verify the proxy contract, visit the link above and click `Is this a proxy?` and follow the instructions.");
 
   } catch (error) {

@@ -15,7 +15,6 @@ To run this project, you will need to add the following environment variables to
 ```bash
 RPC_URL=""
 BUNDLER_URL=""
-CHAIN=""
 ENTRY_POINT_V07_ADDRESS=""
 BASE_SEPOLIA_RPC_URL=""
 BASESCAN_API_KEY=""

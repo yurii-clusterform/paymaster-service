@@ -1,8 +1,7 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { parseEther, formatEther, getAddress, Address, http, createPublicClient, createWalletClient, getContract } from 'viem';
 import { config as dotenvConfig } from 'dotenv';
-import { getChain } from "../../src/helpers/utils";
-import { privateKeyToAccount } from "viem/accounts";
+import { getChain, getDeployerWalletClient, getRPCUrl } from "../../src/helpers/utils";
 import { ENTRYPOINT_ADDRESS_V07 } from "permissionless/utils";
 import { ENTRYPOINT_V07_ABI } from "../../src/helpers/abi";
 
@@ -13,6 +12,8 @@ dotenvConfig();
  */
 export async function main(hre: HardhatRuntimeEnvironment, amount: string = '0.05'): Promise<void> {
   try {
+    const chain = hre.network.name;
+
     // Get the proxy address from environment
     const proxyAddress = process.env.PROXY_ADDRESS;
     if (!proxyAddress || !isValidAddress(proxyAddress)) {
@@ -24,15 +25,11 @@ export async function main(hre: HardhatRuntimeEnvironment, amount: string = '0.0
     const withdrawAmountWei = parseEther(withdrawAmount);
 
     // Get the wallet client and public client
-    const deployer = createWalletClient({
-      chain: getChain(),
-      transport: http(process.env.RPC_URL),
-      account: privateKeyToAccount(`0x${process.env.DEPLOYER_PRIVATE_KEY}`),
-    });
+    const deployer = getDeployerWalletClient(chain);
     const deployerAddress = deployer.account.address;
     const publicClient = createPublicClient({
-      chain: getChain(),
-      transport: http(process.env.RPC_URL),
+      chain: getChain(chain),
+      transport: http(getRPCUrl(chain)),
     });
     
     console.log(`Using account: ${deployerAddress}`);
@@ -47,9 +44,6 @@ export async function main(hre: HardhatRuntimeEnvironment, amount: string = '0.0
     if (owner.toLowerCase() !== deployerAddress.toLowerCase()) {
       throw new Error(`The deployer (${deployerAddress}) is not the owner (${owner}) of the paymaster contract.`);
     }
-    
-    // Check balances before
-    const deployerBalanceBefore = await publicClient.getBalance({ address: deployerAddress });
     
     // Get entry point info
     const entryPointAddress = await paymaster.read.entryPoint([]) as Address;

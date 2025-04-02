@@ -26,16 +26,13 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
     // Address authorized to sign paymaster approvals
     address public verifyingSigner;
 
-    // Version number for upgrade tracking
     uint256 public constant VERSION = 3;
 
-    // Custom errors for better gas efficiency and clearer error reporting
     error InvalidSignatureLength(uint256 length);
     error SignerMismatch(address recovered, address expected);
     error InvalidPaymasterData();
     error UnauthorizedUpgrade();
 
-    // Events
     event VerifyingSignerUpdated(address indexed oldSigner, address indexed newSigner);
     event EntryPointChanged(address indexed newEntryPoint);
     event Validated(bytes32 userOpHash, uint256 maxCost, uint48 validUntil, uint48 validAfter);

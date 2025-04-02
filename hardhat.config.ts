@@ -8,14 +8,6 @@ import { Wallet } from "ethers";
 // Load environment variables
 dotenv.config();
 
-// Log variables for debugging
-console.log("Network configs:", {
-  baseSepolia: {
-    url: process.env.BASE_SEPOLIA_RPC_URL || 'MISSING_URL',
-    apiKey: process.env.BASESCAN_API_KEY || 'MISSING_API_KEY'
-  }
-});
-
 // Task to convert a private key to an address
 task("pk-to-address", "Get address from private key")
   .addParam("pk", "The private key")
@@ -30,21 +22,21 @@ task("pk-to-address", "Get address from private key")
 
 // Task to deploy the paymaster
 task("deploy-paymaster", "Deploy the UUPS paymaster and proxy")
-  .setAction(async (_, hre) => {
+  .setAction(async (taskArgs, hre) => {
     const deployPaymaster = require("./scripts/tasks/deploy-paymaster");
     await deployPaymaster.main(hre);
   });
 
 // Task to upgrade the paymaster implementation
 task("upgrade-paymaster", "Upgrade the UUPS paymaster implementation")
-  .setAction(async (_, hre) => {
+  .setAction(async (taskArgs, hre) => {
     const deployPaymaster = require("./scripts/tasks/deploy-paymaster");
     await deployPaymaster.upgrade(hre);
   });
 
 // Task to deposit funds into the paymaster
 task("deposit-funds", "Fund the paymaster by sending ETH to the EntryPoint")
-  .setAction(async (_, hre) => {
+  .setAction(async (taskArgs, hre) => {
     const depositFunds = require("./scripts/tasks/deposit-funds");
     await depositFunds.main(hre);
   });
@@ -59,7 +51,7 @@ task("withdraw-funds", "Withdraw funds from the paymaster")
 
 // Task to check the status of the paymaster
 task("paymaster-status", "Check the status of the paymaster contract")
-  .setAction(async (_, hre) => {
+  .setAction(async (taskArgs, hre) => {
     const checkStatus = require("./scripts/tasks/check-paymaster-status");
     await checkStatus.main(hre);
   });
@@ -73,7 +65,7 @@ task("update-signer", "Update the trusted signer address for the paymaster")
   });
 
 task("verify-source", "Verify the paymaster implementation and proxy contracts on Etherscan")
-  .setAction(async (args, hre) => {
+  .setAction(async (taskArgs, hre) => {
     const verifySource = require("./scripts/tasks/verify-source");
     await verifySource.main(hre);
   });

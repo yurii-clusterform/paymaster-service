@@ -1,10 +1,9 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types";
-import { formatEther, getAddress, Address, getContract, http, createWalletClient, createPublicClient } from 'viem';
+import { formatEther, getAddress, Address, getContract, http, createPublicClient } from 'viem';
 import { config as dotenvConfig } from 'dotenv';
 import { ENTRYPOINT_V07_ABI } from "../../src/helpers/abi";
 import { ENTRYPOINT_ADDRESS_V07 } from "permissionless/utils";
-import { privateKeyToAccount } from "viem/accounts";
-import { getChain } from "../../src/helpers/utils";
+import { getChain, getDeployerWalletClient, getRPCUrl } from "../../src/helpers/utils";
 
 dotenvConfig();
 
@@ -13,6 +12,8 @@ dotenvConfig();
  */
 export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
   try { 
+    const chain = hre.network.name;
+
     // Get the proxy address from environment
     const proxyAddress = process.env.PROXY_ADDRESS;
     if (!proxyAddress || !isValidAddress(proxyAddress)) {
@@ -22,19 +23,18 @@ export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
     console.log(`Checking paymaster at address: ${proxyAddress}`);
 
     // Setup clients
-    const deployer = createWalletClient({
-      chain: getChain(),
-      transport: http(process.env.RPC_URL),
-      account: privateKeyToAccount(`0x${process.env.DEPLOYER_PRIVATE_KEY}`),
-    });
+    const deployer = getDeployerWalletClient(chain);
     const publicClient = createPublicClient({
-      chain: getChain(),
-      transport: http(process.env.RPC_URL),
+      chain: getChain(chain),
+      transport: http(getRPCUrl(chain)),
     });
     console.log(`Connected to network: ${await publicClient.getChainId()}`);
 
     // Get the contract
-    const paymaster = await hre.viem.getContractAt('SignatureVerifyingPaymasterV07', proxyAddress as Address);
+    const paymaster = await hre.viem.getContractAt(
+      'SignatureVerifyingPaymasterV07', 
+      proxyAddress as Address
+    );
 
     // Get the implementation address (using storage slot for ERC1967)
     const implementationSlot = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';

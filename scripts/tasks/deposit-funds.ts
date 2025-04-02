@@ -1,26 +1,36 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types";
-import { parseEther, formatEther, getAddress, Address, http, createWalletClient, createPublicClient, getContract } from 'viem';
+import { 
+  parseEther, 
+  formatEther, 
+  getAddress, 
+  Address, 
+  http, 
+  createPublicClient, 
+  getContract, 
+} from 'viem';
 import { config as dotenvConfig } from 'dotenv';
-import { privateKeyToAccount } from "viem/accounts";
-import { getChain } from "../../src/helpers/utils";
+import { getChain, getDeployerWalletClient, getRPCUrl } from "../../src/helpers/utils";
 import { ENTRYPOINT_V07_ABI } from "../../src/helpers/abi";
 import { ENTRYPOINT_ADDRESS_V07 } from "permissionless/utils";
 
 dotenvConfig();
+
+// Amount to deposit (in ETH)
+const depositAmount = '0.02'; // 0.02 ETH
 
 /**
  * Fund the paymaster by sending ETH to the EntryPoint
  */
 export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
   try {
+    const chain = hre.network.name;
+
     // Get the proxy address from environment
     const proxyAddress = process.env.PROXY_ADDRESS;
     if (!proxyAddress || !isValidAddress(proxyAddress)) {
       throw new Error('Invalid or missing PROXY_ADDRESS in .env file');
     }
 
-    // Amount to deposit (in ETH)
-    const depositAmount = '0.02'; // 0.02 ETH
     const depositAmountWei = parseEther(depositAmount);
 
     console.log(`Funding paymaster at address: ${proxyAddress}`);
@@ -28,14 +38,10 @@ export async function main(hre: HardhatRuntimeEnvironment): Promise<void> {
 
     // Get the wallet client and public client
     const publicClient = createPublicClient({
-      chain: getChain(),
-      transport: http(process.env.RPC_URL),
+      chain: getChain(chain),
+      transport: http(getRPCUrl(chain)),
     });
-    const deployer = createWalletClient({
-      chain: getChain(),
-      transport: http(process.env.RPC_URL),
-      account: privateKeyToAccount(`0x${process.env.DEPLOYER_PRIVATE_KEY}`),
-    });
+    const deployer = getDeployerWalletClient(chain);
     const deployerAddress = deployer.account.address;
     
     
