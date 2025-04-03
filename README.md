@@ -5,28 +5,40 @@ A paymaster service that lets you use a custom paymaster contract. The service i
 Currently, the service supports v0.7 of the Account Abstraction standard. The paymaster smart contract is deployed using CREATE2 on:
 
 - Base Sepolia
+- Base Mainnet (TODO)
 
 For more details on individual releases, see the [CHANGELOG.md](CHANGELOG.md) file.
 
 ## Environment Variables
 
-To run this project, you will need to add the following environment variables to your .env file. You can use a `RPC_URL` from public services or use your own (e.g. Infura, Alchemy, etc.). The `BUNDLER_URL` can be configured to any ERC4337 compatible bundler (e.g. Pimlico or our SBC Bundler). The `DEPLOYER_PRIVATE_KEY` is the private key of your wallet that will be used to deploy and fund the paymaster contract. The `TRUSTED_SIGNER_PRIVATE_KEY` is the private key of the wallet that will be used to sign transactions for the paymaster contract.
+To run this project, you will need to add the following environment variables to your .env file. Run `cp .env.example .env` to create it.
 
 ```bash
-RPC_URL=""
-BUNDLER_URL=""
 ENTRY_POINT_V07_ADDRESS=""
+
 BASE_SEPOLIA_RPC_URL=""
+BASE_RPC_URL=""
+
+BASE_SEPOLIA_BUNDLER_URL=""
+BASE_BUNDLER_URL=""
+
 BASESCAN_API_KEY=""
 
-DEPLOYER="0x..."
-DEPLOYER_PRIVATE_KEY="0x..."
-TRUSTED_SIGNER="0x..."
-TRUSTED_SIGNER_PRIVATE_KEY="0x..."
-OWNER="0x..."
-OWNER_PRIVATE_KEY="0x..."
-
+# Proxy address of the Paymaster (from the initial deployment)
 PROXY_ADDRESS=""
+
+# Deployer wallet address
+DEPLOYER="0x..."
+# Deployer wallet private key
+DEPLOYER_PRIVATE_KEY="0x..."
+
+# Trusted signer wallet address
+TRUSTED_SIGNER="0x..."
+# Trusted signer wallet private key
+TRUSTED_SIGNER_PRIVATE_KEY="0x..."
+
+# Owner wallet private key
+OWNER_PRIVATE_KEY="0x..."
 ```
 
 ## Compile the paymaster contract

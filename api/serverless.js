@@ -1,16 +1,24 @@
 "use strict";
 
+// Initialize Sentry first
+require("../src/instrument.js");
+const Sentry = require("@sentry/node");
+
+// Load environment variables
 import * as dotenv from "dotenv";
 dotenv.config();
 
-// Require the framework
-import Fastify from "fastify";
+// Require Fastify after Sentry initialization
+const Fastify = require("fastify");
 import routes from "../src/app";
 
 // Instantiate Fastify with some config
 const app = Fastify({
   logger: true,
 });
+
+// Set up Sentry error handler
+Sentry.setupFastifyErrorHandler(app);
 
 // Register your application as a normal plugin.
 app.register(routes, {

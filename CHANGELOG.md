@@ -6,6 +6,8 @@
 - Changed to deterministic upgrading of implementation contract
 - Chain-specific admin tasks
 - Chain-specific wallet clients
+- Chain-specific Bundler, RPC, and Paymaster URLs
+- Error tracking with Sentry
 
 ## 0.3.0
 

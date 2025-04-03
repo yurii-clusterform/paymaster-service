@@ -3,13 +3,27 @@ import {
   createWalletClient,
   Chain,
 } from "viem";
-import { base, baseSepolia } from "viem/chains";
+import { localhost, base, baseSepolia, hardhat } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import "dotenv/config";
 
 /// Returns the bigger of two BigInts.
 export const maxBigInt = (a: bigint, b: bigint) => {
   return a > b ? a : b;
+};
+
+/**
+ * Returns true if the chain is supported.
+ * @param chain The name of the chain to check.
+ * @returns True if the chain is supported, false otherwise.
+ */
+export const isChainSupported = (chain: string) => {
+  return (
+    chain === "baseSepolia" || 
+    chain === "base" || 
+    chain === "localhost" || 
+    chain === "hardhat"
+  );
 };
 
 /**
@@ -20,8 +34,14 @@ export const maxBigInt = (a: bigint, b: bigint) => {
 export const getChain = (chain: string): Chain => {
   if (chain === "baseSepolia") {
     return baseSepolia;
+  } else if (chain === "base") {
+    return base;
+  } else if (chain === "localhost") {
+    return localhost;
+  } else if (chain === "hardhat") {
+    return hardhat;
   }
-  return base;
+  throw new Error(`Unsupported chain: ${chain}`);
 };
 
 /**
@@ -57,8 +77,12 @@ export const getTrustedSignerWalletClient = (chain: string) => {
 export const getRPCUrl = (chain: string) => {
   if (chain === "baseSepolia") {
     return process.env.BASE_SEPOLIA_RPC_URL;
+  } else if (chain === "base") {
+    return process.env.BASE_RPC_URL;
+  } else if (chain === "localhost" || chain === "hardhat") {
+    return process.env.LOCALHOST_RPC_URL;
   }
-  return process.env.BASE_RPC_URL;
+  throw new Error(`Unsupported chain: ${chain}`);
 };
 
 /**
@@ -69,8 +93,12 @@ export const getRPCUrl = (chain: string) => {
 export const getBundlerUrl = (chain: string) => {
   if (chain === "baseSepolia") {
     return process.env.BASE_SEPOLIA_BUNDLER_URL;
+  } else if (chain === "base") {
+    return process.env.BASE_BUNDLER_URL;
+  } else if (chain === "localhost" || chain === "hardhat") {
+    return process.env.LOCALHOST_BUNDLER_URL;
   }
-  return process.env.BASE_BUNDLER_URL;
+  throw new Error(`Unsupported chain: ${chain}`);
 };
 
 /**
@@ -81,6 +109,10 @@ export const getBundlerUrl = (chain: string) => {
 export const getScannerUrl = (chain: string) => {
   if (chain === "baseSepolia") {
     return "https://sepolia.basescan.org";
+  } else if (chain === "base") {
+    return "https://basescan.org";
+  } else if (chain === "localhost" || chain === "hardhat") {
+    return "http://localhost:8545";
   }
-  return "https://basescan.org";
+  throw new Error(`Unsupported chain: ${chain}`);
 };

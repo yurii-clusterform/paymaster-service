@@ -10,23 +10,34 @@ The UUPS proxy pattern allows for upgrading contract logic while maintaining the
 
 ### Configuration
 
-Create a `.env` file in the root directory with the following variables:
+Create a `.env` file (run `cp .env.example .env` to create it) in the root directory with the following variables:
 
 ```bash
-# Network RPC URL
-RPC_URL=https://...
+ENTRY_POINT_V07_ADDRESS=""
 
-# Private key for deployment
-DEPLOYER_PRIVATE_KEY=your_private_key_without_0x_prefix
+BASE_SEPOLIA_RPC_URL=""
+BASE_RPC_URL=""
 
-# The address authorized to sign paymaster approvals
-TRUSTED_SIGNER=0x...
+BASE_SEPOLIA_BUNDLER_URL=""
+BASE_BUNDLER_URL=""
 
-# Default EntryPoint address (for v0.7)
-ENTRY_POINT_ADDRESS=0x0000000071727de22e5e9d8baf0edac6f37da032
+BASESCAN_API_KEY=""
 
-# After deployment, add your proxy address here
-PROXY_ADDRESS=0x...
+# Proxy address of the Paymaster (from the initial deployment)
+PROXY_ADDRESS=""
+
+# Deployer wallet address
+DEPLOYER="0x..."
+# Deployer wallet private key
+DEPLOYER_PRIVATE_KEY="0x..."
+
+# Trusted signer wallet address
+TRUSTED_SIGNER="0x..."
+# Trusted signer wallet private key
+TRUSTED_SIGNER_PRIVATE_KEY="0x..."
+
+# Owner wallet private key
+OWNER_PRIVATE_KEY="0x..."
 ```
 
 ## Admin Scripts

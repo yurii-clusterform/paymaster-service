@@ -11,11 +11,17 @@ async function app(
   opts: FastifyServerOptions,
   done: () => void
 ) {
-  instance.get("/", async (req: FastifyRequest, res: FastifyReply) => {
-    res.status(200).send("custom paymaster from SBC");
-  });
-  instance.register(routes, { prefix: "/" });
-  done();
+  try {
+    // Register all routes through the main routes plugin
+    await instance.register(routes, { prefix: "/" });
+
+    // Call done without arguments
+    done();
+  } catch (error) {
+    // Log the error but don't pass it to done
+    console.error("Error in app setup:", error);
+    throw error; // Let Fastify handle the error
+  }
 }
 
 export default app;

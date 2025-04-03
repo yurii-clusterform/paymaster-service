@@ -8,18 +8,6 @@ import { Wallet } from "ethers";
 // Load environment variables
 dotenv.config();
 
-// Task to convert a private key to an address
-task("pk-to-address", "Get address from private key")
-  .addParam("pk", "The private key")
-  .setAction(async (taskArgs) => {
-    try {
-      const wallet = new Wallet(taskArgs.pk);
-      console.log(`Address: ${wallet.address}`);
-    } catch (error: any) {
-      console.error(`Error: ${error.message}`);
-    }
-  });
-
 // Task to deploy the paymaster
 task("deploy-paymaster", "Deploy the UUPS paymaster and proxy")
   .setAction(async (taskArgs, hre) => {
