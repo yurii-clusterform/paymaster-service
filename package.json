@@ -4,10 +4,7 @@
   "scripts": {
     "compile": "hardhat compile",
     "copy": "npm run compile && copyfiles -f artifacts/contracts/**/*.json contracts/abi/",
-    "start": "tsx src/index.ts",
-    "verify": "TS_NODE_PROJECT=tsconfig.hardhat.json npx hardhat verify --network $NETWORK $ADDRESS --contract contracts/$CONTRACT.sol:$CONTRACT",
-    "verify:contract": "./scripts/verify.sh",
-    "verify:direct": "TS_NODE_PROJECT=tsconfig.hardhat.json npx hardhat verify"
+    "start": "tsx src/index.ts"
   },
   "dependencies": {
     "@account-abstraction/contracts": "0.7.0",
