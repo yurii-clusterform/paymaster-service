@@ -33,9 +33,6 @@ DEPLOYER_PRIVATE_KEY="0x..."
 TRUSTED_SIGNER="0x..."
 # Trusted signer wallet private key
 TRUSTED_SIGNER_PRIVATE_KEY="0x..."
-
-# Owner wallet private key
-OWNER_PRIVATE_KEY="0x..."
 ```
 
 ## Admin Scripts
