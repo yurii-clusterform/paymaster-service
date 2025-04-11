@@ -16,14 +16,14 @@ async function start(port = 3000) {
     prefix: "/",
   });
 
-  await app.listen({ host: "0.0.0.0", port });
+  await app.listen({ host: "::", port });
 }
 
 const PORT = Number(process.env.PORT) || 3000;
 
 start(PORT)
   .then(() => {
-    console.log(`Running on http://0.0.0.0:${PORT}`);
+    console.log(`Running on http://[::]:${PORT} (IPv4 & IPv6)`);
   })
   .catch((err) => {
     console.error(err);
