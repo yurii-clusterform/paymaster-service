@@ -142,7 +142,7 @@ const routes: FastifyPluginAsync = async (server) => {
       instance.register(
         async (chainInstance: FastifyInstance) => {
           chainInstance.post(
-            "/rpc",
+            "/v1/:chain",
             async (
               req: FastifyRequest<CustomRouteGenericParam>,
               res: FastifyReply
@@ -171,12 +171,9 @@ const routes: FastifyPluginAsync = async (server) => {
           );
         },
         {
-          prefix: "/:chain",
+          prefix: "/rpc",
         }
       );
-    },
-    {
-      prefix: "/v1",
     }
   );
 };
