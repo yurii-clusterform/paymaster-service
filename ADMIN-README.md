@@ -2,6 +2,8 @@
 
 This repository contains a UUPS (Universal Upgradeable Proxy Standard) implementation of the SignatureVerifyingPaymasterV07 contract for ERC-4337 account abstraction.
 
+Common management tasks are handled by the admin scripts, defined as hardhat tasks.
+
 ## Overview
 
 The UUPS proxy pattern allows for upgrading contract logic while maintaining the same contract address and state. This is particularly useful for a paymaster service that needs to evolve over time while keeping the same trusted address.
@@ -37,7 +39,7 @@ TRUSTED_SIGNER_PRIVATE_KEY="0x..."
 
 ## Admin Scripts
 
-For a cleaner architecture, admin scripts are organized in a task-friendly structure:
+Admin scripts are organized in the `scripts/tasks` folder.
 
 ```text
 scripts/
@@ -60,7 +62,7 @@ To deploy the initial implementation and proxy:
 npx hardhat deploy-paymaster --network <your-network>
 ```
 
-Save the proxy address that is output by the script in your `.env` file.
+**NOTE:** After your initial deploy, save the proxy address that is output by the script in your `.env` file.
 
 ### Checking Paymaster Status
 

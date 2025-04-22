@@ -3,7 +3,6 @@ import "@nomicfoundation/hardhat-verify";
 import "@nomicfoundation/hardhat-ethers";
 import "@nomicfoundation/hardhat-viem";
 import dotenv from "dotenv";
-import { Wallet } from "ethers";
 
 // Load environment variables
 dotenv.config();

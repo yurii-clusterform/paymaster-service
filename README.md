@@ -1,11 +1,13 @@
 # paymaster-service
 
-A paymaster service that lets you use a custom paymaster contract. The service is built using Next.js and Fastify, hosted on Vercel.
+A paymaster service that lets you use a custom paymaster contract. The service is built using Fastify, deployed to Railway.
 
 Currently, the service supports v0.7 of the Account Abstraction standard. The paymaster smart contract is deployed using CREATE2 on:
 
 - Base Sepolia
-- Base Mainnet (TODO)
+- Base Mainnet
+
+The [admin scripts](ADMIN-README.md) are capable of deploying the paymaster contract to other EVM-compatible chains.
 
 For more details on individual releases, see the [CHANGELOG.md](CHANGELOG.md) file.
 
@@ -55,10 +57,6 @@ Running the project locally is done by running the following command. The paymas
 ```bash
 npm run start
 ```
-
-## Vercel Deployment
-
-As expected, deployment is done by pushing to the main branch. The deployment is done by Vercel.
 
 ## Author
 

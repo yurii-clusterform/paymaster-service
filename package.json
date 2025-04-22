@@ -14,7 +14,6 @@
     "@sentry/node": "^9.10.1",
     "copyfiles": "^2.4.1",
     "dotenv": "^16.4.7",
-    "ethers": "^6.13.5",
     "fastify": "^4.26.2",
     "permissionless": "^0.1.0",
     "tslib": "2.6.2",
