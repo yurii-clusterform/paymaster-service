@@ -60,4 +60,4 @@ npm run start
 
 ## Author
 
-- [@Ectsang](https://www.github.com/Ectsang)
+- Eric Tsang [@Ectsang](https://www.github.com/Ectsang)
