@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2
+
+- Cleaned up README and admin scripts
+- MIT `LICENSE`
+
 ## 0.3.1
 
 - Changed to deterministic deployment of implementation and proxy contracts

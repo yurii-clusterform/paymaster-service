@@ -1,6 +1,7 @@
 {
   "name": "custom-paymaster",
-  "private": true,
+  "author": "Stable Coin Inc.",
+  "license": "MIT",
   "scripts": {
     "compile": "hardhat compile",
     "copy": "npm run compile && copyfiles -f artifacts/contracts/**/*.json contracts/abi/",
