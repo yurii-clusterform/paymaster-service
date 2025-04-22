@@ -7,7 +7,12 @@ import { localhost, base, baseSepolia, hardhat } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import "dotenv/config";
 
-/// Returns the bigger of two BigInts.
+/**
+ * Returns the bigger of two BigInts.
+ * @param a The first BigInt.
+ * @param b The second BigInt.
+ * @returns The bigger of the two BigInts.
+ */
 export const maxBigInt = (a: bigint, b: bigint) => {
   return a > b ? a : b;
 };
@@ -74,6 +79,11 @@ export const getTrustedSignerWalletClient = (chain: string) => {
   });
 };
 
+/**
+ * Returns the RPC URL for the given chain.
+ * @param chain The name of the chain to use.
+ * @returns The RPC URL.
+ */
 export const getRPCUrl = (chain: string) => {
   if (chain === "baseSepolia") {
     return process.env.BASE_SEPOLIA_RPC_URL;
