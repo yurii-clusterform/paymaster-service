@@ -47,28 +47,30 @@ This document outlines the approach to fix the security issues identified in the
 - ✅ Simplified validation logic to use original timestamps
 - ✅ Updated documentation comments
 
-## TODO: Medium Severity Issues
+## ✅ COMPLETED: Medium Severity Issues
 
-### [M-1] Paymaster accepts any gas cost
+### [M-1] Paymaster accepts any gas cost - FIXED ✅
 
 **Problem**: No validation of gas costs allows potentially expensive transactions to drain the paymaster.
 
-**Fix Approach**:
-1. **Add maxGas validation**: Implement a maximum gas limit check
-2. **Configurable limits**: Make gas limits configurable by owner
-3. **Per-operation limits**: Validate against the `maxCost` parameter
+**Fix Implemented**:
+1. ✅ **Added maxGas validation**: Implemented a maximum gas limit check with `GasCostTooHigh` error
+2. ✅ **Configurable limits**: Made gas limits configurable by owner via `setMaxAllowedGasCost()` function
+3. ✅ **Per-operation limits**: Validates against the `maxCost` parameter in `_validatePaymasterUserOp()`
 
-**Implementation Details**:
-- Add state variable for maximum allowed gas cost
-- Add owner-only function to update gas limits
-- Validate `maxCost` parameter in `_validatePaymasterUserOp()`
-- Consider different limits for different types of operations
+**Implementation Details Completed**:
+- ✅ Added `maxAllowedGasCost` state variable (default: 0.01 ETH)
+- ✅ Added `setMaxAllowedGasCost()` owner-only function to update gas limits
+- ✅ Added validation in `_validatePaymasterUserOp()` to check `maxCost` parameter
+- ✅ Added `GasCostTooHigh` error type and `MaxAllowedGasCostUpdated` event
+- ✅ Updated storage gap from 50 to 49 to account for new state variable
 
-**Code Changes Required**:
-- Add `maxAllowedGasCost` state variable
-- Add `setMaxAllowedGasCost()` owner function
-- Add validation in `_validatePaymasterUserOp()`
-- Add appropriate error types and events
+**Code Changes Made**:
+- ✅ Added `maxAllowedGasCost` state variable with 0.01 ETH default
+- ✅ Added `setMaxAllowedGasCost()` owner function with proper event emission
+- ✅ Added gas cost validation that reverts if `maxCost > maxAllowedGasCost`
+- ✅ Added appropriate error types and events
+- ✅ Updated initialize function to set default gas limit
 
 ## TODO: Low Severity Issues
 
@@ -98,8 +100,8 @@ This document outlines the approach to fix the security issues identified in the
 ## Implementation Status
 
 1. ✅ **Phase 1 (Critical)**: Fixed C-1 and H-1 simultaneously - COMPLETED
-2. **Phase 2 (Important)**: Implement M-1 gas cost validation - NEXT UP
-3. **Phase 3 (Standards)**: Implement L-1 EIP712 compliance - PENDING
+2. ✅ **Phase 2 (Important)**: Implemented M-1 gas cost validation - COMPLETED
+3. **Phase 3 (Standards)**: Implement L-1 EIP712 compliance - NEXT UP
 
 ## Testing Strategy
 
@@ -127,29 +129,42 @@ This document outlines the approach to fix the security issues identified in the
 ## Risk Assessment
 
 - **Low Risk**: EIP712 implementation (standard pattern)
-- **Medium Risk**: Gas cost validation (may break some legitimate high-gas operations)
+- ✅ **Medium Risk**: Gas cost validation (COMPLETED - configurable limits prevent griefing)
 - ✅ **High Risk**: Signature format changes (COMPLETED - breaks existing integrations by design for security)
 
 ## Success Criteria
 
 - ✅ No signature replay attacks possible
 - ✅ Signatures properly expire based on timestamps
-- [ ] Gas costs are validated and limited
+- ✅ Gas costs are validated and limited
 - [ ] EIP712 compliance achieved
 - [ ] All existing tests pass with new implementation
 - [ ] New security tests pass
 - ✅ Backend integration works with new signature format
 
-## Summary of Critical Fixes Completed
+## Summary of Fixes Completed
 
 **Security Improvements Made:**
 1. ✅ **Replay Attack Prevention**: Signatures now include nonce and calldata hash, making each signature unique to a specific transaction
 2. ✅ **Proper Expiration**: Removed timestamp adjustment mechanism, signatures now properly expire according to their validity window
-3. ✅ **Version Update**: Contract version incremented to invalidate old signatures during upgrade
+3. ✅ **Gas Cost Protection**: Added configurable maximum gas cost limits to prevent griefing attacks
+4. ✅ **Version Update**: Contract version incremented to invalidate old signatures during upgrade
 
 **Breaking Changes Made:**
 - Signature format has changed (intentional for security)
 - Existing signatures will no longer be valid (intentional)
 - Backend API has been updated to match new signature requirements
+- Added gas cost validation (may reject previously accepted high-cost transactions)
 
-The most critical vulnerabilities have been addressed. The paymaster is now significantly more secure against replay attacks and signature reuse. 
+**Operational Improvements:**
+- Owner can configure maximum gas cost via `setMaxAllowedGasCost()` function
+- Default gas limit set to 0.01 ETH (adjustable)
+- Better error reporting with `GasCostTooHigh` error
+- Event emission for gas limit changes
+
+The critical and medium-severity vulnerabilities have been addressed. The paymaster is now significantly more secure against:
+- ✅ Replay attacks and signature reuse
+- ✅ Timestamp manipulation for indefinite signature validity  
+- ✅ Gas cost griefing attacks
+
+Only the low-severity EIP712 compliance remains to be implemented. 

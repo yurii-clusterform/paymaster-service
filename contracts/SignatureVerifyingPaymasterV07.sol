@@ -25,6 +25,9 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
 
     // Address authorized to sign paymaster approvals
     address public verifyingSigner;
+    
+    // Maximum gas cost the paymaster is willing to cover (in wei)
+    uint256 public maxAllowedGasCost;
 
     uint256 public constant VERSION = 4;
 
@@ -32,10 +35,12 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
     error SignerMismatch(address recovered, address expected);
     error InvalidPaymasterData();
     error UnauthorizedUpgrade();
+    error GasCostTooHigh(uint256 requested, uint256 maxAllowed);
 
     event VerifyingSignerUpdated(address indexed oldSigner, address indexed newSigner);
     event EntryPointChanged(address indexed newEntryPoint);
     event Validated(bytes32 userOpHash, uint256 maxCost, uint48 validUntil, uint48 validAfter);
+    event MaxAllowedGasCostUpdated(uint256 oldLimit, uint256 newLimit);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(IEntryPoint _entryPoint) BasePaymaster(_entryPoint) {
@@ -51,6 +56,10 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
         __UUPSUpgradeable_init();
         verifyingSigner = _verifyingSigner;
         
+        // Set default maximum gas cost to 0.01 ETH (10^16 wei)
+        // This can be adjusted by the owner after deployment
+        maxAllowedGasCost = 0.01 ether;
+        
         // Transfer ownership to the specified owner
         // This is necessary because BasePaymaster's constructor runs for the implementation
         // but not for the proxy, so we need to set ownership in the initializer
@@ -65,6 +74,16 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
         address oldSigner = verifyingSigner;
         verifyingSigner = _verifyingSigner;
         emit VerifyingSignerUpdated(oldSigner, _verifyingSigner);
+    }
+
+    /**
+     * @dev Updates the maximum allowed gas cost
+     * @param _maxAllowedGasCost The new maximum gas cost in wei
+     */
+    function setMaxAllowedGasCost(uint256 _maxAllowedGasCost) external onlyOwner {
+        uint256 oldLimit = maxAllowedGasCost;
+        maxAllowedGasCost = _maxAllowedGasCost;
+        emit MaxAllowedGasCostUpdated(oldLimit, _maxAllowedGasCost);
     }
 
     /**
@@ -210,6 +229,11 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
             return ("", _packValidationData(true, validUntil, validAfter));
         }
         
+        // Validate gas cost doesn't exceed maximum allowed
+        if (maxCost > maxAllowedGasCost) {
+            revert GasCostTooHigh(maxCost, maxAllowedGasCost);
+        }
+        
         emit Validated(userOpHash, maxCost, validUntil, validAfter);
 
         // Signature is valid, return success 
@@ -243,5 +267,5 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
      * variables without shifting down storage in the inheritance chain.
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 }
