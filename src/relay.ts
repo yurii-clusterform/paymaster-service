@@ -12,6 +12,7 @@ import {
   type WalletClient,
   hexToBytes,
   toHex,
+  keccak256,
 } from "viem";
 import { fromZodError } from "zod-validation-error";
 import { type EstimateUserOperationGasReturnType } from "permissionless";
@@ -67,11 +68,16 @@ const handleSbcMethodV07 = async (
     // Use the sender address from the userOperation
     const senderAddress = userOperation.sender;
     
+    // Generate hash of calldata for signature verification
+    const calldataHash = keccak256(hexToBytes(userOperation.callData));
+    
     const contractHash = await paymasterV07.read.getHash([
       validUntil,
       validAfter,
       paymasterV07.address,
-      senderAddress
+      senderAddress,
+      userOperation.nonce,
+      calldataHash
     ]) as Hex;
     
     // Sign the hash
@@ -180,18 +186,22 @@ const handleSbcMethod = async (
       const validAfter = currentTimestamp;
       const validUntil = currentTimestamp + 3600; // 1 hour validity
       
-      // Get simplified hash from contract
-      // For stub data, we use a zero address for the user since we don't know it yet
+      // For stub data, we use placeholder values since we don't know the actual UserOperation yet
+      // The actual signature will be generated when the full UserOperation is available
       const zeroAddress = "0x0000000000000000000000000000000000000000" as Hex;
+      const placeholderNonce = 0n; // Placeholder nonce for stub data
+      const placeholderCalldataHash = "0x0000000000000000000000000000000000000000000000000000000000000000" as Hex; // Placeholder calldata hash
       
       const calculatedUserOpHash = await paymasterV07.read.getHash([
         validUntil,
         validAfter,
         paymasterV07.address,
-        zeroAddress
+        zeroAddress,
+        placeholderNonce,
+        placeholderCalldataHash
       ]) as Hex;
       
-      // Sign the hash
+      // Sign the hash (this is just stub data, actual signature will be different)
       const signature = await trustedSignerWalletClient.signMessage({
         message: { raw: hexToBytes(calculatedUserOpHash) }
       });

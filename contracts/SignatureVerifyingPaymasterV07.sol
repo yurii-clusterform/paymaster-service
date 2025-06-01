@@ -26,7 +26,7 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
     // Address authorized to sign paymaster approvals
     address public verifyingSigner;
 
-    uint256 public constant VERSION = 3;
+    uint256 public constant VERSION = 4;
 
     error InvalidSignatureLength(uint256 length);
     error SignerMismatch(address recovered, address expected);
@@ -111,29 +111,35 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
     }
 
     /**
-     * @dev Generates a hash for signing and verification based on timestamps and addresses
+     * @dev Generates a hash for signing and verification based on timestamps, addresses, nonce, and calldata
      * 
-     * This method creates a hash that doesn't depend on the userOpHash, solving the
-     * chicken-and-egg problem where we need a signature before the userOp is fully formed.
+     * This method creates a hash that includes the userOp nonce and calldata hash to prevent
+     * replay attacks. Each signature is now tied to a specific transaction.
      * 
      * @param validUntil Timestamp after which the signature expires
      * @param validAfter Timestamp before which the signature is not valid
      * @param paymasterAddress The address of this paymaster contract
      * @param senderAddress The address of the sender initiating the UserOperation
+     * @param nonce The nonce from the UserOperation to prevent replay attacks
+     * @param calldataHash Hash of the UserOperation calldata to tie signature to specific transaction
      * @return A bytes32 hash that should be signed by the verifyingSigner
      */
     function getHash(
         uint48 validUntil,
         uint48 validAfter,
         address paymasterAddress,
-        address senderAddress
+        address senderAddress,
+        uint256 nonce,
+        bytes32 calldataHash
     ) public view returns (bytes32) {
         return keccak256(abi.encode(
             validUntil,
             validAfter,
             block.chainid,
             paymasterAddress,
-            senderAddress
+            senderAddress,
+            nonce,
+            calldataHash
         ));
     }
 
@@ -180,8 +186,18 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
         (uint48 validUntil, uint48 validAfter, bytes calldata signature) = 
             parsePaymasterData(paymasterData);
             
-        // Generate the hash using sender address and timestamps
-        bytes32 hash = getHash(validUntil, validAfter, address(this), userOp.sender);
+        // Generate hash of calldata for signature verification
+        bytes32 calldataHash = keccak256(userOp.callData);
+            
+        // Generate the hash using all UserOperation parameters to prevent replay attacks
+        bytes32 hash = getHash(
+            validUntil, 
+            validAfter, 
+            address(this), 
+            userOp.sender, 
+            userOp.nonce, 
+            calldataHash
+        );
         
         // Convert to EIP-191 format
         bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(hash);
@@ -194,37 +210,9 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
             return ("", _packValidationData(true, validUntil, validAfter));
         }
         
-        /**
-         * TIMESTAMP ADJUSTMENT MECHANISM
-         * 
-         * This section implements automatic adjustments to the validity window timestamps
-         * to prevent common validation errors. These adjustments happen AFTER signature
-         * verification is complete, so they don't affect the cryptographic validation.
-         * 
-         * The original timestamps from paymasterData were used to verify the signature.
-         * Now we may modify them before returning to the EntryPoint.
-         */
-        
-        // Convert current block timestamp to uint48 for comparison with our timestamps
-        uint48 now48 = uint48(block.timestamp);
-        
-        // EXPIRED TIMESTAMP HANDLING:
-        // If validUntil is in the past or too close to now, extend it
-        // This prevents "AA32 paymaster expired" errors
-        if (validUntil <= now48 || validUntil < now48 + 60) {
-            validUntil = now48 + 3600; // Add 1 hour from now
-        }
-        
-        // FUTURE ACTIVATION HANDLING:
-        // If validAfter is in the future, adjust it to be valid now
-        // This prevents "AA32 paymaster not due" errors
-        if (validAfter > now48) {
-            validAfter = now48 > 60 ? now48 - 60 : 0; // Set to 60 seconds in the past
-        }
-        
         emit Validated(userOpHash, maxCost, validUntil, validAfter);
 
-        // Signature is valid, return success with adjusted timestamps
+        // Signature is valid, return success 
         return (abi.encode(maxCost), _packValidationData(false, validUntil, validAfter));
     }
 

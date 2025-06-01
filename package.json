@@ -1,6 +1,7 @@
 {
   "name": "custom-paymaster",
   "author": "Stable Coin Inc.",
+  "type": "commonjs",
   "license": "MIT",
   "scripts": {
     "compile": "hardhat compile",
