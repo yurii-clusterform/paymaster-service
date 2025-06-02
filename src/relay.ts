@@ -62,7 +62,7 @@ const handleSbcMethodV07 = async (
   try {
     // Set timestamps for validation window
     const currentTimestamp = Math.floor(Date.now() / 1000);
-    const validAfter = currentTimestamp;
+    const validAfter = currentTimestamp - 10; // 10 seconds before current timestamp
     const validUntil = currentTimestamp + 3600; // 1 hour validity
     
     // Use the sender address from the userOperation
@@ -70,20 +70,39 @@ const handleSbcMethodV07 = async (
     
     // Generate hash of calldata for signature verification
     const calldataHash = keccak256(hexToBytes(userOperation.callData));
+
+    const chainId = await trustedSignerWalletClient.getChainId();
     
-    const contractHash = await paymasterV07.read.getHash([
-      validUntil,
-      validAfter,
-      paymasterV07.address,
-      senderAddress,
-      userOperation.nonce,
-      calldataHash
-    ]) as Hex;
-    
-    // Sign the hash
-    const signature = await trustedSignerWalletClient.signMessage({
-      message: { raw: hexToBytes(contractHash) }
-    });
+    // Sign using EIP712 structured signing
+    const signature = await trustedSignerWalletClient.signTypedData({
+      domain: {
+        name: "SignatureVerifyingPaymaster",
+        version: "4",
+        chainId: chainId,
+        verifyingContract: paymasterV07.address,
+      },
+      types: {
+        PaymasterData: [
+          { name: "validUntil", type: "uint48" },
+          { name: "validAfter", type: "uint48" },
+          { name: "chainId", type: "uint256" },
+          { name: "paymaster", type: "address" },
+          { name: "sender", type: "address" },
+          { name: "nonce", type: "uint256" },
+          { name: "calldataHash", type: "bytes32" },
+        ]
+      },
+      primaryType: "PaymasterData",
+      message: {
+        validUntil,
+        validAfter,
+        chainId: BigInt(chainId),
+        paymaster: paymasterV07.address,
+        sender: senderAddress,
+        nonce: userOperation.nonce,
+        calldataHash: calldataHash,
+      }
+    })
     
     // Construct paymasterData
     const validUntilHex = validUntil.toString(16).padStart(12, '0');

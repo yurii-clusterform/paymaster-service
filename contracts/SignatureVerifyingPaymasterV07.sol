@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 
 /**
  * @title SignatureVerifyingPaymasterV07
@@ -18,7 +19,7 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
  * This paymaster uses timestamps for validity periods and allows transactions
  * to be signed by a trusted entity before they're submitted on-chain.
  */
-contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BasePaymaster {
+contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BasePaymaster, EIP712Upgradeable {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
     using UserOperationLib for PackedUserOperation;
@@ -30,6 +31,15 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
     uint256 public maxAllowedGasCost;
 
     uint256 public constant VERSION = 4;
+
+    // EIP712 Domain
+    string private constant DOMAIN_NAME = "SignatureVerifyingPaymaster";
+    string private constant DOMAIN_VERSION = "4";
+    
+    // EIP712 TypeHash for the PaymasterData struct
+    bytes32 private constant PAYMASTER_DATA_TYPEHASH = keccak256(
+        "PaymasterData(uint48 validUntil,uint48 validAfter,uint256 chainId,address paymaster,address sender,uint256 nonce,bytes32 calldataHash)"
+    );
 
     error InvalidSignatureLength(uint256 length);
     error SignerMismatch(address recovered, address expected);
@@ -54,6 +64,7 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
      */
     function initialize(address _verifyingSigner, address _owner) public initializer {
         __UUPSUpgradeable_init();
+        __EIP712_init(DOMAIN_NAME, DOMAIN_VERSION);
         verifyingSigner = _verifyingSigner;
         
         // Set default maximum gas cost to 0.01 ETH (10^16 wei)
@@ -81,6 +92,10 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
      * @param _maxAllowedGasCost The new maximum gas cost in wei
      */
     function setMaxAllowedGasCost(uint256 _maxAllowedGasCost) external onlyOwner {
+        // Validate the new limit is reasonable (not zero and not excessively high)
+        require(_maxAllowedGasCost > 0, "Gas cost limit cannot be zero");
+        require(_maxAllowedGasCost <= 1 ether, "Gas cost limit too high"); // Adjust threshold as needed
+        
         uint256 oldLimit = maxAllowedGasCost;
         maxAllowedGasCost = _maxAllowedGasCost;
         emit MaxAllowedGasCostUpdated(oldLimit, _maxAllowedGasCost);
@@ -132,8 +147,8 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
     /**
      * @dev Generates a hash for signing and verification based on timestamps, addresses, nonce, and calldata
      * 
-     * This method creates a hash that includes the userOp nonce and calldata hash to prevent
-     * replay attacks. Each signature is now tied to a specific transaction.
+     * This method creates an EIP712 compliant hash that includes the userOp nonce and calldata hash to prevent
+     * replay attacks. Each signature is now tied to a specific transaction and follows EIP712 standard.
      * 
      * @param validUntil Timestamp after which the signature expires
      * @param validAfter Timestamp before which the signature is not valid
@@ -151,7 +166,8 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
         uint256 nonce,
         bytes32 calldataHash
     ) public view returns (bytes32) {
-        return keccak256(abi.encode(
+        bytes32 structHash = keccak256(abi.encode(
+            PAYMASTER_DATA_TYPEHASH,
             validUntil,
             validAfter,
             block.chainid,
@@ -160,6 +176,16 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
             nonce,
             calldataHash
         ));
+        
+        return _hashTypedDataV4(structHash);
+    }
+
+    /**
+     * @dev Returns the domain separator for this contract
+     * @return The EIP712 domain separator
+     */
+    function domainSeparator() public view returns (bytes32) {
+        return _domainSeparatorV4();
     }
 
     /**
@@ -205,27 +231,18 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
         (uint48 validUntil, uint48 validAfter, bytes calldata signature) = 
             parsePaymasterData(paymasterData);
             
-        // Generate hash of calldata for signature verification
-        bytes32 calldataHash = keccak256(userOp.callData);
-            
-        // Generate the hash using all UserOperation parameters to prevent replay attacks
+        // Generate the EIP712 hash using all UserOperation parameters to prevent replay attacks
         bytes32 hash = getHash(
             validUntil, 
             validAfter, 
             address(this), 
             userOp.sender, 
             userOp.nonce, 
-            calldataHash
+            keccak256(userOp.callData)
         );
         
-        // Convert to EIP-191 format
-        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(hash);
-        
-        // Recover signer address from signature
-        address recovered = ECDSA.recover(ethSignedHash, signature);
-        
-        // If signature doesn't match our authorized signer, return signature failure
-        if (recovered != verifyingSigner) {
+        // Recover signer address from EIP712 signature and validate it matches
+        if (ECDSA.recover(hash, signature) != verifyingSigner) {
             return ("", _packValidationData(true, validUntil, validAfter));
         }
         
@@ -267,5 +284,5 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
      * variables without shifting down storage in the inheritance chain.
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
-    uint256[49] private __gap;
+    uint256[48] private __gap;
 }
