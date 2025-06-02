@@ -38,7 +38,7 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
     
     // EIP712 TypeHash for the PaymasterData struct
     bytes32 private constant PAYMASTER_DATA_TYPEHASH = keccak256(
-        "PaymasterData(uint48 validUntil,uint48 validAfter,uint256 chainId,address paymaster,address sender,uint256 nonce,bytes32 calldataHash)"
+        "PaymasterData(uint48 validUntil,uint48 validAfter,address sender,uint256 nonce,bytes32 calldataHash)"
     );
 
     error InvalidSignatureLength(uint256 length);
@@ -152,7 +152,6 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
      * 
      * @param validUntil Timestamp after which the signature expires
      * @param validAfter Timestamp before which the signature is not valid
-     * @param paymasterAddress The address of this paymaster contract
      * @param senderAddress The address of the sender initiating the UserOperation
      * @param nonce The nonce from the UserOperation to prevent replay attacks
      * @param calldataHash Hash of the UserOperation calldata to tie signature to specific transaction
@@ -161,7 +160,6 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
     function getHash(
         uint48 validUntil,
         uint48 validAfter,
-        address paymasterAddress,
         address senderAddress,
         uint256 nonce,
         bytes32 calldataHash
@@ -170,8 +168,6 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
             PAYMASTER_DATA_TYPEHASH,
             validUntil,
             validAfter,
-            block.chainid,
-            paymasterAddress,
             senderAddress,
             nonce,
             calldataHash
@@ -235,7 +231,6 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
         bytes32 hash = getHash(
             validUntil, 
             validAfter, 
-            address(this), 
             userOp.sender, 
             userOp.nonce, 
             keccak256(userOp.callData)

@@ -38,6 +38,78 @@ import {
   abi as PaymasterV07Abi,
 } from "../contracts/abi/SignatureVerifyingPaymasterV07.json";
 
+// Constants
+const PAYMASTER_VERSION = "4";
+
+/**
+ * Generate EIP712 signature for paymaster validation
+ * @param paymasterAddress The paymaster contract address
+ * @param trustedSignerWalletClient The wallet client of the trusted signer
+ * @param validUntil The timestamp until which the signature is valid
+ * @param validAfter The timestamp after which the signature is valid
+ * @param senderAddress The address of the user operation sender
+ * @param nonce The nonce from the user operation
+ * @param calldataHash The hash of the user operation calldata
+ * @returns The EIP712 signature
+ */
+const generateEIP712Signature = async (
+  trustedSignerWalletClient: WalletClient<Transport, Chain, Account>,
+  paymasterAddress: Hex,
+  validUntil: number,
+  validAfter: number,
+  senderAddress: Hex,
+  nonce: bigint,
+  calldataHash: Hex
+): Promise<Hex> => {
+  const chainId = await trustedSignerWalletClient.getChainId();
+  
+  // Sign using EIP712 structured signing
+  const signature = await trustedSignerWalletClient.signTypedData({
+    domain: {
+      name: "SignatureVerifyingPaymaster",
+      version: PAYMASTER_VERSION,
+      chainId: Number(chainId),
+      verifyingContract: paymasterAddress,
+    },
+    types: {
+      PaymasterData: [
+        { name: "validUntil", type: "uint48" },
+        { name: "validAfter", type: "uint48" },
+        { name: "sender", type: "address" },
+        { name: "nonce", type: "uint256" },
+        { name: "calldataHash", type: "bytes32" },
+      ]
+    },
+    primaryType: "PaymasterData",
+    message: {
+      validUntil: validUntil,
+      validAfter: validAfter,
+      sender: senderAddress,
+      nonce: nonce,
+      calldataHash: calldataHash,
+    }
+  });
+  
+  return signature;
+};
+
+/**
+ * Create paymaster data by combining timestamps and signature
+ * @param validUntil The timestamp until which the signature is valid
+ * @param validAfter The timestamp after which the signature is valid
+ * @param signature The EIP712 signature
+ * @returns The formatted paymaster data
+ */
+const createPaymasterData = (
+  validUntil: number,
+  validAfter: number,
+  signature: Hex
+): Hex => {
+  const validUntilHex = validUntil.toString(16).padStart(12, '0');
+  const validAfterHex = validAfter.toString(16).padStart(12, '0');
+  return `0x${validUntilHex}${validAfterHex}${signature.slice(2)}` as Hex;
+};
+
 // SBC methods
 
 /**
@@ -71,43 +143,19 @@ const handleSbcMethodV07 = async (
     // Generate hash of calldata for signature verification
     const calldataHash = keccak256(hexToBytes(userOperation.callData));
 
-    const chainId = await trustedSignerWalletClient.getChainId();
-    
-    // Sign using EIP712 structured signing
-    const signature = await trustedSignerWalletClient.signTypedData({
-      domain: {
-        name: "SignatureVerifyingPaymaster",
-        version: "4",
-        chainId: chainId,
-        verifyingContract: paymasterV07.address,
-      },
-      types: {
-        PaymasterData: [
-          { name: "validUntil", type: "uint48" },
-          { name: "validAfter", type: "uint48" },
-          { name: "chainId", type: "uint256" },
-          { name: "paymaster", type: "address" },
-          { name: "sender", type: "address" },
-          { name: "nonce", type: "uint256" },
-          { name: "calldataHash", type: "bytes32" },
-        ]
-      },
-      primaryType: "PaymasterData",
-      message: {
-        validUntil,
-        validAfter,
-        chainId: BigInt(chainId),
-        paymaster: paymasterV07.address,
-        sender: senderAddress,
-        nonce: userOperation.nonce,
-        calldataHash: calldataHash,
-      }
-    })
+    // Generate EIP712 signature
+    const signature = await generateEIP712Signature(
+      trustedSignerWalletClient,
+      paymasterV07.address,
+      validUntil,
+      validAfter,
+      senderAddress,
+      userOperation.nonce,
+      calldataHash
+    );
     
     // Construct paymasterData
-    const validUntilHex = validUntil.toString(16).padStart(12, '0');
-    const validAfterHex = validAfter.toString(16).padStart(12, '0');
-    const paymasterData = `0x${validUntilHex}${validAfterHex}${signature.slice(2)}` as Hex;
+    const paymasterData = createPaymasterData(validUntil, validAfter, signature);
     
     if (estimateGas) {
       // For gas estimation
@@ -206,29 +254,23 @@ const handleSbcMethod = async (
       const validUntil = currentTimestamp + 3600; // 1 hour validity
       
       // For stub data, we use placeholder values since we don't know the actual UserOperation yet
-      // The actual signature will be generated when the full UserOperation is available
       const zeroAddress = "0x0000000000000000000000000000000000000000" as Hex;
       const placeholderNonce = 0n; // Placeholder nonce for stub data
       const placeholderCalldataHash = "0x0000000000000000000000000000000000000000000000000000000000000000" as Hex; // Placeholder calldata hash
       
-      const calculatedUserOpHash = await paymasterV07.read.getHash([
+      // Generate EIP712 signature using placeholder values
+      const signature = await generateEIP712Signature(
+        trustedSignerWalletClient,
+        paymasterV07.address,
         validUntil,
         validAfter,
-        paymasterV07.address,
         zeroAddress,
         placeholderNonce,
         placeholderCalldataHash
-      ]) as Hex;
-      
-      // Sign the hash (this is just stub data, actual signature will be different)
-      const signature = await trustedSignerWalletClient.signMessage({
-        message: { raw: hexToBytes(calculatedUserOpHash) }
-      });
+      );
       
       // Create paymasterData with formatted timestamps
-      const validUntilHex = validUntil.toString(16).padStart(12, '0');
-      const validAfterHex = validAfter.toString(16).padStart(12, '0');
-      const paymasterData = `0x${validUntilHex}${validAfterHex}${signature.slice(2)}` as Hex;
+      const paymasterData = createPaymasterData(validUntil, validAfter, signature);
       
       // Return with gas limits
       return {
