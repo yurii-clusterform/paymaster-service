@@ -30,17 +30,15 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
     // Maximum gas cost the paymaster is willing to cover (in wei)
     uint256 public maxAllowedGasCost;
 
-    uint256 public constant VERSION = 4;
+    uint256 public constant VERSION = 5;
 
     // EIP712 Domain
     string private constant DOMAIN_NAME = "SignatureVerifyingPaymaster";
-    string private constant DOMAIN_VERSION = "4";
-    
-    // EIP712 TypeHash for the PaymasterData struct
+    string private constant DOMAIN_VERSION = "5";
     bytes32 private constant PAYMASTER_DATA_TYPEHASH = keccak256(
         "PaymasterData(uint48 validUntil,uint48 validAfter,address sender,uint256 nonce,bytes32 calldataHash)"
     );
-
+    
     error InvalidSignatureLength(uint256 length);
     error SignerMismatch(address recovered, address expected);
     error InvalidPaymasterData();
@@ -75,6 +73,10 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
         // This is necessary because BasePaymaster's constructor runs for the implementation
         // but not for the proxy, so we need to set ownership in the initializer
         _transferOwnership(_owner);
+    }
+
+    function reinitializeEIP712() external reinitializer(4) { // 3rd reinitializer after initial deployment
+        __EIP712_init(DOMAIN_NAME, DOMAIN_VERSION);
     }
 
     /**
@@ -152,15 +154,15 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
      * 
      * @param validUntil Timestamp after which the signature expires
      * @param validAfter Timestamp before which the signature is not valid
-     * @param senderAddress The address of the sender initiating the UserOperation
+     * @param sender The address of the sender initiating the UserOperation
      * @param nonce The nonce from the UserOperation to prevent replay attacks
      * @param calldataHash Hash of the UserOperation calldata to tie signature to specific transaction
-     * @return A bytes32 hash that should be signed by the verifyingSigner
+     * @return bytes32 The EIP-712 compliant hash of the PaymasterData, incorporating the domain separator.
      */
     function getHash(
         uint48 validUntil,
         uint48 validAfter,
-        address senderAddress,
+        address sender,
         uint256 nonce,
         bytes32 calldataHash
     ) public view returns (bytes32) {
@@ -168,11 +170,11 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
             PAYMASTER_DATA_TYPEHASH,
             validUntil,
             validAfter,
-            senderAddress,
+            sender,
             nonce,
             calldataHash
         ));
-        
+
         return _hashTypedDataV4(structHash);
     }
 
@@ -191,7 +193,7 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
      * @param sigFailed True if signature validation failed
      * @param validUntil Timestamp until which the signature is valid
      * @param validAfter Timestamp after which the signature is valid
-     * @return packed A uint256 containing all validation data
+     * @return packed uint256 containing all validation data
      */
     function _packValidationData(
         bool sigFailed,
@@ -220,6 +222,11 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
         bytes32 userOpHash,
         uint256 maxCost
     ) internal virtual override returns (bytes memory context, uint256 validationData) {
+        // Validate gas cost doesn't exceed maximum allowed
+        if (maxCost > maxAllowedGasCost) {
+            revert GasCostTooHigh(maxCost, maxAllowedGasCost);
+        }
+
         // Extract timestamps and signature from paymaster data
         bytes calldata paymasterData = userOp.paymasterAndData[UserOperationLib.PAYMASTER_DATA_OFFSET:]; 
         
@@ -239,11 +246,6 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
         // Recover signer address from EIP712 signature and validate it matches
         if (ECDSA.recover(hash, signature) != verifyingSigner) {
             return ("", _packValidationData(true, validUntil, validAfter));
-        }
-        
-        // Validate gas cost doesn't exceed maximum allowed
-        if (maxCost > maxAllowedGasCost) {
-            revert GasCostTooHigh(maxCost, maxAllowedGasCost);
         }
         
         emit Validated(userOpHash, maxCost, validUntil, validAfter);
