@@ -12,6 +12,7 @@ import {
   type WalletClient,
   hexToBytes,
   toHex,
+  keccak256,
 } from "viem";
 import { fromZodError } from "zod-validation-error";
 import { type EstimateUserOperationGasReturnType } from "permissionless";
@@ -37,6 +38,67 @@ import {
   abi as PaymasterV07Abi,
 } from "../contracts/abi/SignatureVerifyingPaymasterV07.json";
 
+// Constants
+const PAYMASTER_VERSION = "5";
+
+/**
+ * Generate EIP712 signature for paymaster data
+ */
+const generatePaymasterSignature = async (
+  walletClient: WalletClient<Transport, Chain, Account>,
+  paymasterAddress: Hex,
+  validUntil: number,
+  validAfter: number,
+  senderAddress: Hex,
+  nonce: bigint,
+  calldataHash: Hex
+): Promise<Hex> => {
+  const chainId = await walletClient.getChainId();
+  
+  return await walletClient.signTypedData({
+    domain: {
+      name: "SignatureVerifyingPaymaster",
+      version: PAYMASTER_VERSION,
+      chainId: chainId,
+      verifyingContract: paymasterAddress
+    },
+    types: {
+      PaymasterData: [
+        { name: "validUntil", type: "uint48" },
+        { name: "validAfter", type: "uint48" },
+        { name: "sender", type: "address" },
+        { name: "nonce", type: "uint256" },
+        { name: "calldataHash", type: "bytes32" }
+      ]
+    },
+    primaryType: "PaymasterData",
+    message: {
+      validUntil: validUntil,
+      validAfter: validAfter,
+      sender: senderAddress,
+      nonce: nonce,
+      calldataHash: calldataHash
+    }
+  });
+};
+
+/**
+ * Create paymaster data by combining timestamps and signature
+ * @param validUntil The timestamp until which the signature is valid
+ * @param validAfter The timestamp after which the signature is valid
+ * @param signature The EIP712 signature
+ * @returns The formatted paymaster data
+ */
+const createPaymasterData = (
+  validUntil: number,
+  validAfter: number,
+  signature: Hex
+): Hex => {
+  const validUntilHex = validUntil.toString(16).padStart(12, '0');
+  const validAfterHex = validAfter.toString(16).padStart(12, '0');
+  return `0x${validUntilHex}${validAfterHex}${signature.slice(2)}` as Hex;
+};
+
 // SBC methods
 
 /**
@@ -61,29 +123,29 @@ const handleSbcMethodV07 = async (
   try {
     // Set timestamps for validation window
     const currentTimestamp = Math.floor(Date.now() / 1000);
-    const validAfter = currentTimestamp;
+    const validAfter = currentTimestamp - 10; // 10 seconds before current timestamp
     const validUntil = currentTimestamp + 3600; // 1 hour validity
     
     // Use the sender address from the userOperation
     const senderAddress = userOperation.sender;
     
-    const contractHash = await paymasterV07.read.getHash([
+    // Generate hash of calldata for signature verification
+    const calldataHash = keccak256(hexToBytes(userOperation.callData));
+
+    // Generate EIP712 signature
+    const signature = await generatePaymasterSignature(
+      trustedSignerWalletClient,
+      paymasterV07.address,
       validUntil,
       validAfter,
-      paymasterV07.address,
-      senderAddress
-    ]) as Hex;
-    
-    // Sign the hash
-    const signature = await trustedSignerWalletClient.signMessage({
-      message: { raw: hexToBytes(contractHash) }
-    });
-    
+      senderAddress,
+      userOperation.nonce,
+      calldataHash
+    );
+
     // Construct paymasterData
-    const validUntilHex = validUntil.toString(16).padStart(12, '0');
-    const validAfterHex = validAfter.toString(16).padStart(12, '0');
-    const paymasterData = `0x${validUntilHex}${validAfterHex}${signature.slice(2)}` as Hex;
-    
+    const paymasterData = createPaymasterData(validUntil, validAfter, signature);
+
     if (estimateGas) {
       // For gas estimation
       let op = {
@@ -165,7 +227,7 @@ const handleSbcMethod = async (
       );
     }
 
-    const [, entryPoint] = params.data;
+    const [userOperation, entryPoint] = params.data;
 
     if (entryPoint !== ENTRYPOINT_ADDRESS_V07) {
       throw new RpcError(
@@ -175,33 +237,25 @@ const handleSbcMethod = async (
     }
   
     try {
-      // Prepare timestamps
       const currentTimestamp = Math.floor(Date.now() / 1000);
-      const validAfter = currentTimestamp;
+      const validAfter = currentTimestamp - 10; // 10 seconds before current timestamp
       const validUntil = currentTimestamp + 3600; // 1 hour validity
       
-      // Get simplified hash from contract
-      // For stub data, we use a zero address for the user since we don't know it yet
-      const zeroAddress = "0x0000000000000000000000000000000000000000" as Hex;
-      
-      const calculatedUserOpHash = await paymasterV07.read.getHash([
+      const senderAddress = userOperation.sender;
+      const calldataHash = keccak256(hexToBytes(userOperation.callData));
+
+      const signature = await generatePaymasterSignature(
+        trustedSignerWalletClient,
+        paymasterV07.address,
         validUntil,
         validAfter,
-        paymasterV07.address,
-        zeroAddress
-      ]) as Hex;
+        senderAddress,
+        userOperation.nonce,
+        calldataHash
+      );
       
-      // Sign the hash
-      const signature = await trustedSignerWalletClient.signMessage({
-        message: { raw: hexToBytes(calculatedUserOpHash) }
-      });
+      const paymasterData = createPaymasterData(validUntil, validAfter, signature);
       
-      // Create paymasterData with formatted timestamps
-      const validUntilHex = validUntil.toString(16).padStart(12, '0');
-      const validAfterHex = validAfter.toString(16).padStart(12, '0');
-      const paymasterData = `0x${validUntilHex}${validAfterHex}${signature.slice(2)}` as Hex;
-      
-      // Return with gas limits
       return {
         paymasterData: paymasterData,
         paymasterVerificationGasLimit: toHex(100_000n),

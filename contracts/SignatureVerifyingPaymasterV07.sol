@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 
 /**
  * @title SignatureVerifyingPaymasterV07
@@ -18,24 +19,36 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
  * This paymaster uses timestamps for validity periods and allows transactions
  * to be signed by a trusted entity before they're submitted on-chain.
  */
-contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BasePaymaster {
+contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BasePaymaster, EIP712Upgradeable {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
     using UserOperationLib for PackedUserOperation;
 
     // Address authorized to sign paymaster approvals
     address public verifyingSigner;
+    
+    // Maximum gas cost the paymaster is willing to cover (in wei)
+    uint256 public maxAllowedGasCost;
 
-    uint256 public constant VERSION = 3;
+    uint256 public constant VERSION = 5;
 
+    // EIP712 Domain
+    string private constant DOMAIN_NAME = "SignatureVerifyingPaymaster";
+    string private constant DOMAIN_VERSION = "5";
+    bytes32 private constant PAYMASTER_DATA_TYPEHASH = keccak256(
+        "PaymasterData(uint48 validUntil,uint48 validAfter,address sender,uint256 nonce,bytes32 calldataHash)"
+    );
+    
     error InvalidSignatureLength(uint256 length);
     error SignerMismatch(address recovered, address expected);
     error InvalidPaymasterData();
     error UnauthorizedUpgrade();
+    error GasCostTooHigh(uint256 requested, uint256 maxAllowed);
 
     event VerifyingSignerUpdated(address indexed oldSigner, address indexed newSigner);
     event EntryPointChanged(address indexed newEntryPoint);
     event Validated(bytes32 userOpHash, uint256 maxCost, uint48 validUntil, uint48 validAfter);
+    event MaxAllowedGasCostUpdated(uint256 oldLimit, uint256 newLimit);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(IEntryPoint _entryPoint) BasePaymaster(_entryPoint) {
@@ -49,12 +62,21 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
      */
     function initialize(address _verifyingSigner, address _owner) public initializer {
         __UUPSUpgradeable_init();
+        __EIP712_init(DOMAIN_NAME, DOMAIN_VERSION);
         verifyingSigner = _verifyingSigner;
+        
+        // Set default maximum gas cost to 0.01 ETH (10^16 wei)
+        // This can be adjusted by the owner after deployment
+        maxAllowedGasCost = 0.01 ether;
         
         // Transfer ownership to the specified owner
         // This is necessary because BasePaymaster's constructor runs for the implementation
         // but not for the proxy, so we need to set ownership in the initializer
         _transferOwnership(_owner);
+    }
+
+    function reinitializeEIP712() external reinitializer(4) { // 3rd reinitializer after initial deployment
+        __EIP712_init(DOMAIN_NAME, DOMAIN_VERSION);
     }
 
     /**
@@ -65,6 +87,20 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
         address oldSigner = verifyingSigner;
         verifyingSigner = _verifyingSigner;
         emit VerifyingSignerUpdated(oldSigner, _verifyingSigner);
+    }
+
+    /**
+     * @dev Updates the maximum allowed gas cost
+     * @param _maxAllowedGasCost The new maximum gas cost in wei
+     */
+    function setMaxAllowedGasCost(uint256 _maxAllowedGasCost) external onlyOwner {
+        // Validate the new limit is reasonable (not zero and not excessively high)
+        require(_maxAllowedGasCost > 0, "Gas cost limit cannot be zero");
+        require(_maxAllowedGasCost <= 1 ether, "Gas cost limit too high"); // Adjust threshold as needed
+        
+        uint256 oldLimit = maxAllowedGasCost;
+        maxAllowedGasCost = _maxAllowedGasCost;
+        emit MaxAllowedGasCostUpdated(oldLimit, _maxAllowedGasCost);
     }
 
     /**
@@ -111,30 +147,43 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
     }
 
     /**
-     * @dev Generates a hash for signing and verification based on timestamps and addresses
+     * @dev Generates a hash for signing and verification based on timestamps, addresses, nonce, and calldata
      * 
-     * This method creates a hash that doesn't depend on the userOpHash, solving the
-     * chicken-and-egg problem where we need a signature before the userOp is fully formed.
+     * This method creates an EIP712 compliant hash that includes the userOp nonce and calldata hash to prevent
+     * replay attacks. Each signature is now tied to a specific transaction and follows EIP712 standard.
      * 
      * @param validUntil Timestamp after which the signature expires
      * @param validAfter Timestamp before which the signature is not valid
-     * @param paymasterAddress The address of this paymaster contract
-     * @param senderAddress The address of the sender initiating the UserOperation
-     * @return A bytes32 hash that should be signed by the verifyingSigner
+     * @param sender The address of the sender initiating the UserOperation
+     * @param nonce The nonce from the UserOperation to prevent replay attacks
+     * @param calldataHash Hash of the UserOperation calldata to tie signature to specific transaction
+     * @return bytes32 The EIP-712 compliant hash of the PaymasterData, incorporating the domain separator.
      */
     function getHash(
         uint48 validUntil,
         uint48 validAfter,
-        address paymasterAddress,
-        address senderAddress
+        address sender,
+        uint256 nonce,
+        bytes32 calldataHash
     ) public view returns (bytes32) {
-        return keccak256(abi.encode(
+        bytes32 structHash = keccak256(abi.encode(
+            PAYMASTER_DATA_TYPEHASH,
             validUntil,
             validAfter,
-            block.chainid,
-            paymasterAddress,
-            senderAddress
+            sender,
+            nonce,
+            calldataHash
         ));
+
+        return _hashTypedDataV4(structHash);
+    }
+
+    /**
+     * @dev Returns the domain separator for this contract
+     * @return The EIP712 domain separator
+     */
+    function domainSeparator() public view returns (bytes32) {
+        return _domainSeparatorV4();
     }
 
     /**
@@ -144,7 +193,7 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
      * @param sigFailed True if signature validation failed
      * @param validUntil Timestamp until which the signature is valid
      * @param validAfter Timestamp after which the signature is valid
-     * @return packed A uint256 containing all validation data
+     * @return packed uint256 containing all validation data
      */
     function _packValidationData(
         bool sigFailed,
@@ -173,6 +222,11 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
         bytes32 userOpHash,
         uint256 maxCost
     ) internal virtual override returns (bytes memory context, uint256 validationData) {
+        // Validate gas cost doesn't exceed maximum allowed
+        if (maxCost > maxAllowedGasCost) {
+            revert GasCostTooHigh(maxCost, maxAllowedGasCost);
+        }
+
         // Extract timestamps and signature from paymaster data
         bytes calldata paymasterData = userOp.paymasterAndData[UserOperationLib.PAYMASTER_DATA_OFFSET:]; 
         
@@ -180,51 +234,23 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
         (uint48 validUntil, uint48 validAfter, bytes calldata signature) = 
             parsePaymasterData(paymasterData);
             
-        // Generate the hash using sender address and timestamps
-        bytes32 hash = getHash(validUntil, validAfter, address(this), userOp.sender);
+        // Generate the EIP712 hash using all UserOperation parameters to prevent replay attacks
+        bytes32 hash = getHash(
+            validUntil, 
+            validAfter, 
+            userOp.sender, 
+            userOp.nonce, 
+            keccak256(userOp.callData)
+        );
         
-        // Convert to EIP-191 format
-        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(hash);
-        
-        // Recover signer address from signature
-        address recovered = ECDSA.recover(ethSignedHash, signature);
-        
-        // If signature doesn't match our authorized signer, return signature failure
-        if (recovered != verifyingSigner) {
+        // Recover signer address from EIP712 signature and validate it matches
+        if (ECDSA.recover(hash, signature) != verifyingSigner) {
             return ("", _packValidationData(true, validUntil, validAfter));
-        }
-        
-        /**
-         * TIMESTAMP ADJUSTMENT MECHANISM
-         * 
-         * This section implements automatic adjustments to the validity window timestamps
-         * to prevent common validation errors. These adjustments happen AFTER signature
-         * verification is complete, so they don't affect the cryptographic validation.
-         * 
-         * The original timestamps from paymasterData were used to verify the signature.
-         * Now we may modify them before returning to the EntryPoint.
-         */
-        
-        // Convert current block timestamp to uint48 for comparison with our timestamps
-        uint48 now48 = uint48(block.timestamp);
-        
-        // EXPIRED TIMESTAMP HANDLING:
-        // If validUntil is in the past or too close to now, extend it
-        // This prevents "AA32 paymaster expired" errors
-        if (validUntil <= now48 || validUntil < now48 + 60) {
-            validUntil = now48 + 3600; // Add 1 hour from now
-        }
-        
-        // FUTURE ACTIVATION HANDLING:
-        // If validAfter is in the future, adjust it to be valid now
-        // This prevents "AA32 paymaster not due" errors
-        if (validAfter > now48) {
-            validAfter = now48 > 60 ? now48 - 60 : 0; // Set to 60 seconds in the past
         }
         
         emit Validated(userOpHash, maxCost, validUntil, validAfter);
 
-        // Signature is valid, return success with adjusted timestamps
+        // Signature is valid, return success 
         return (abi.encode(maxCost), _packValidationData(false, validUntil, validAfter));
     }
 
@@ -255,5 +281,5 @@ contract SignatureVerifyingPaymasterV07 is Initializable, UUPSUpgradeable, BaseP
      * variables without shifting down storage in the inheritance chain.
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
-    uint256[50] private __gap;
+    uint256[48] private __gap;
 }
