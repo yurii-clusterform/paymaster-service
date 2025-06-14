@@ -137,7 +137,7 @@ script/
 To deploy the initial implementation and proxy:
 
 ```bash
-forge script script/DeployPaymaster.s.sol --rpc-url $RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY
+forge script script/DeployPaymaster.s.sol --rpc-url $RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY --verify --etherscan-api-key $ETHERSCAN_API_KEY
 ```
 
 ##### Upgrading the Implementation
@@ -145,7 +145,27 @@ forge script script/DeployPaymaster.s.sol --rpc-url $RPC_URL --broadcast --priva
 To upgrade the implementation contract:
 
 ```bash
-forge script script/UpgradePaymaster.s.sol --rpc-url $RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY
+forge script script/UpgradePaymaster.s.sol --rpc-url $RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY --verify --etherscan-api-key $ETHERSCAN_API_KEY
+```
+
+##### Manually verifying the implementation source
+
+```bash
+forge verify-contract \
+  --rpc-url $RPC_URL \
+  --etherscan-api-key $ETHERSCAN_API_KEY \
+  <CONTRACT_ADDRESS> \
+  <CONTRACT_NAME>
+```
+
+Example:
+
+```bash
+forge verify-contract \
+  --rpc-url $RPC_URL \
+  --etherscan-api-key $ETHERSCAN_API_KEY \
+  0x1234567890123456789012345678901234567890 \
+  contracts/SignatureVerifyingPaymasterV07.sol:SignatureVerifyingPaymasterV07
 ```
 
 ##### Funding the Paymaster
@@ -253,7 +273,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { mainnet } from 'viem/chains';
 
 // Setup the wallet client with the trusted signer
-const signer = privateKeyToAccount('0x' + process.env.TRUSTED_SIGNER_PRIVATE_KEY);
+const signer = privateKeyToAccount(process.env.TRUSTED_SIGNER_PRIVATE_KEY);
 const walletClient = createWalletClient({
   chain: mainnet, // or your target chain
   account: signer
