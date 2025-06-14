@@ -56,7 +56,14 @@ export const getChain = (chain: string): Chain => {
  * @returns The wallet client.
  */
 export const getDeployerWalletClient = (chain: string) => {
-  const account = privateKeyToAccount(process.env.DEPLOYER_PRIVATE_KEY as Hex);
+  let privateKey = process.env.DEPLOYER_PRIVATE_KEY;
+  if (!privateKey) {
+    throw new Error("DEPLOYER_PRIVATE_KEY is not set");
+  }
+  if (!privateKey.startsWith("0x")) {
+    privateKey = "0x" + privateKey;
+  }
+  const account = privateKeyToAccount(privateKey as Hex);
 
   return createWalletClient({
     account,
@@ -71,7 +78,14 @@ export const getDeployerWalletClient = (chain: string) => {
  * @returns The wallet client for the trusted signer.
  */
 export const getTrustedSignerWalletClient = (chain: string) => {
-  const account = privateKeyToAccount(process.env.TRUSTED_SIGNER_PRIVATE_KEY as Hex);
+  let privateKey = process.env.TRUSTED_SIGNER_PRIVATE_KEY;
+  if (!privateKey) {
+    throw new Error("TRUSTED_SIGNER_PRIVATE_KEY is not set");
+  }
+  if (!privateKey.startsWith("0x")) {
+    privateKey = "0x" + privateKey;
+  }
+  const account = privateKeyToAccount(privateKey as Hex);
 
   return createWalletClient({
     account,
