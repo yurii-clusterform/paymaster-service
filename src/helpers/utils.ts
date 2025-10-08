@@ -3,10 +3,30 @@ import {
   createWalletClient,
   Chain,
   Hex,
+  defineChain,
 } from "viem";
 import { localhost, base, baseSepolia, hardhat } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import "dotenv/config";
+
+export const hoodi = defineChain({
+  id: 560048,
+  name: 'Ethereum Hoodi',
+  network: 'hoodi',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'Ether',
+    symbol: 'ETH',
+  },
+  rpcUrls: {
+    default: { http: ['https://ethereum-hoodi-rpc.publicnode.com'] },
+    public: { http: ['https://ethereum-hoodi-rpc.publicnode.com'] },
+  },
+  blockExplorers: {
+    default: { name: 'HoodiScan', url: 'https://hoodi.etherscan.io' },
+  },
+  testnet: true,
+});
 
 /**
  * Returns the bigger of two BigInts.
@@ -25,10 +45,11 @@ export const maxBigInt = (a: bigint, b: bigint) => {
  */
 export const isChainSupported = (chain: string) => {
   return (
-    chain === "baseSepolia" || 
-    chain === "base" || 
-    chain === "localhost" || 
-    chain === "hardhat"
+      chain === "baseSepolia" ||
+      chain === "base" ||
+      chain === "localhost" ||
+      chain === "hardhat" ||
+      chain === "hoodi"
   );
 };
 
@@ -46,6 +67,8 @@ export const getChain = (chain: string): Chain => {
     return localhost;
   } else if (chain === "hardhat") {
     return hardhat;
+  } else if (chain === "hoodi") {
+    return hoodi;
   }
   throw new Error(`Unsupported chain: ${chain}`);
 };
@@ -106,6 +129,8 @@ export const getRPCUrl = (chain: string) => {
     return process.env.BASE_RPC_URL;
   } else if (chain === "localhost" || chain === "hardhat") {
     return process.env.LOCALHOST_RPC_URL;
+  } else if (chain === "hoodi") {
+    return process.env.HOODI_RPC_URL;
   }
   throw new Error(`Unsupported chain: ${chain}`);
 };
@@ -122,6 +147,8 @@ export const getBundlerUrl = (chain: string) => {
     return process.env.BASE_BUNDLER_URL;
   } else if (chain === "localhost" || chain === "hardhat") {
     return process.env.LOCALHOST_BUNDLER_URL;
+  } else if (chain === "hoodi") {
+    return process.env.HOODI_BUNDLER_URL;
   }
   throw new Error(`Unsupported chain: ${chain}`);
 };
@@ -138,6 +165,8 @@ export const getScannerUrl = (chain: string) => {
     return "https://basescan.org";
   } else if (chain === "localhost" || chain === "hardhat") {
     return "http://localhost:8545";
+  } else if (chain === "hoodi") {
+    return "https://hoodi.etherscan.io";
   }
   throw new Error(`Unsupported chain: ${chain}`);
 };
