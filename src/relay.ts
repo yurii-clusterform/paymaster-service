@@ -372,6 +372,46 @@ const handleSbcMethod = async (
     );
 
   }
+  if (parsedBody.method === "pm_prepareUserOperation") {
+    const params = pmSponsorUserOperationParamsSchema.safeParse(
+        parsedBody.params
+    );
+    if (!params.success) {
+      throw new RpcError(
+          fromZodError(params.error).message,
+          ValidationErrors.InvalidFields
+      );
+    }
+    const [userOperation, entryPoint] = params.data;
+    if (entryPoint !== ENTRYPOINT_ADDRESS_V08) {
+      throw new RpcError(
+          "EntryPoint not supported",
+          ValidationErrors.InvalidFields
+      );
+    }
+    const result = await handleSbcMethodV08(
+        userOperation as UserOperation<"v0.7">,
+        altoBundlerV08,
+        paymasterV08,
+        trustedSignerWalletClient,
+        true
+    );
+    const paymasterVerificationGasLimit = result.paymasterVerificationGasLimit;
+    const paymasterPostOpGasLimit = result.paymasterPostOpGasLimit;
+    const paymasterAndData = `0x${result.paymaster.slice(2)}${paymasterVerificationGasLimit.slice(2)}${paymasterPostOpGasLimit.slice(2)}${result.paymasterData.slice(2)}` as Hex;
+    const updatedUserOperation = {
+      sender: userOperation.sender,
+      nonce: toHex(userOperation.nonce),
+      initCode: userOperation.initCode,
+      callData: userOperation.callData,
+      accountGasLimits: `0x${pad(result.verificationGasLimit, { size: 16 }).slice(2)}${pad(result.callGasLimit, { size: 16 }).slice(2)}` as Hex,
+      preVerificationGas: result.preVerificationGas,
+      gasFees: `0x${pad(toHex(userOperation.maxPriorityFeePerGas), { size: 16 }).slice(2)}${pad(toHex(userOperation.maxFeePerGas), { size: 16 }).slice(2)}` as Hex,
+      paymasterAndData,
+      signature: "0x" as Hex,
+    };
+    return updatedUserOperation;
+  }
   throw new RpcError(
       "Attempted to call an unknown method",
       ValidationErrors.InvalidFields
